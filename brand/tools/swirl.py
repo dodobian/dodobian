@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Фирменная спираль Dodobian: одна кривая для «d», хвоста и спиннера.
+"""The Dodobian swirl: one curve for the "d", the tail and the spinner.
 
-Запуск: python3 brand/tools/swirl.py  (только стандартная библиотека)
-Результат: brand/svg/swirl.svg, brand/svg/dmark-swirl.svg, brand/svg/spinner.svg
-Образец формы: спирали из brand/art/gpt-swirl-sheet.png
+Run:    python3 brand/tools/swirl.py  (stdlib only)
+Output: brand/svg/swirl.svg, brand/svg/dmark-swirl.svg, brand/svg/spinner.svg
+Shape reference: the spirals in brand/art/gpt-swirl-sheet.png
 """
 from math import cos, sin, pi
 from pathlib import Path
@@ -14,14 +14,14 @@ LIME, CREAM, FLAME, NIGHT = "#A6D608", "#F3E7C9", "#E8553A", "#0E2620"
 
 
 def spiral_band(cx, cy, r_out, turns=2.15, w_out=0.30, w_in=0.06, start=-0.5 * pi, ccw=True, n=260):
-    """Сужающаяся лента по архимедовой спирали от внешнего радиуса к центру.
+    """A tapering band along an Archimedean spiral, from the outer radius to the centre.
 
-    r_out  внешний радиус средней линии
-    w_out  ширина ленты снаружи, доля от r_out; w_in внутри
-    start  угол начала (снаружи), ccw: закручивается против часовой
+    r_out  outer radius of the centre line
+    w_out  band width at the outside, as a fraction of r_out; w_in at the inside
+    start  start angle (outside); ccw: winds counter-clockwise
     """
     th_max = turns * 2 * pi
-    k = r_out / th_max  # r = k * t, t от th_max до ~0.35 оборота
+    k = r_out / th_max  # r = k * t, t from th_max down to ~0.35 of a turn
     t_min = 0.38 * 2 * pi
     pts_o, pts_i = [], []
     sgn = 1 if ccw else -1
@@ -35,7 +35,7 @@ def spiral_band(cx, cy, r_out, turns=2.15, w_out=0.30, w_in=0.06, start=-0.5 * p
         px, py = cx + r * ux, cy + r * uy
         pts_o.append((px + ux * w / 2, py + uy * w / 2))
         pts_i.append((px - ux * w / 2, py - uy * w / 2))
-    # Скруглённый кончик в центре
+    # Rounded tip at the centre
     ex, ey = pts_o[-1]
     ix, iy = pts_i[-1]
     tip_r = ((ex - ix) ** 2 + (ey - iy) ** 2) ** 0.5 / 2
@@ -43,7 +43,7 @@ def spiral_band(cx, cy, r_out, turns=2.15, w_out=0.30, w_in=0.06, start=-0.5 * p
     d += " ".join("L%.2f,%.2f" % p for p in pts_o[1:])
     d += " A%.2f,%.2f 0 0 1 %.2f,%.2f " % (tip_r, tip_r, ix, iy)
     d += " ".join("L%.2f,%.2f" % p for p in reversed(pts_i))
-    # Скруглённый внешний торец
+    # Rounded outer end
     ox, oy = pts_o[0]
     sx, sy = pts_i[0]
     end_r = ((ox - sx) ** 2 + (oy - sy) ** 2) ** 0.5 / 2
@@ -60,8 +60,8 @@ def swirl_svg(size=64, body=LIME, band=CREAM):
 
 
 def dmark_svg():
-    # Красная основа: чаша + ножка. Кремовая линия идёт по ножке вниз и без шва
-    # переходит в спираль чаши: точка стыка = внешний конец спирали (угол 0, справа).
+    # Red base: bowl + stem. The cream line runs down the stem and turns seamlessly
+    # into the spiral of the bowl: the joint is the outer end of the spiral (angle 0, right).
     bowl_cx, bowl_cy, bowl_r = 26, 40, 21
     r_out, w = 14.5, 6.0
     join_x = bowl_cx + r_out

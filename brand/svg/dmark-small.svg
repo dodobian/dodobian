@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <!-- Dodobian: упрощённый D-знак для 16–32 px. Нарисован руками по brand/svg/dmark.svg -->
+  <!-- Dodobian: simplified D mark for 16-32 px. Drawn by hand after brand/svg/dmark.svg -->
   <path d="M5,5 H30 C49,5 59,18 59,32 C59,46 49,59 30,59 H5 Z" fill="#1F6B45"/>
   <path d="M21,23 C21,14 29,11 36,13 C45,16 47,26 45,35 C43,45 35,51 26,49 C19,47 17,39 21,32 Z" fill="#FFFFFF"/>
   <path d="M31,30 C39,23 52,24 56,33 C58,38 55,44 50,45 C50,41 47,39 43,39 C38,39 34,41 30,43 Z" fill="#A6D608"/>

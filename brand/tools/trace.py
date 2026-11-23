@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Трассировка знаков Dodobian из листа GPT в SVG.
+"""Traces the Dodobian marks from the GPT sheet into SVG.
 
-Запуск: python brand/tools/trace.py  (нужны pillow и vtracer; vtracer 0.6 на Python 3.14 только с позиционными аргументами)
-Источник: brand/art/gpt-logo-sheet-hibiscus.png (гибискус лаймовый, перекрашиваем в красный).
-Результат: brand/svg/*.svg и промежуточные PNG в brand/svg/work/.
+Run:    python brand/tools/trace.py  (needs pillow and vtracer; vtracer 0.6 on Python 3.14 takes positional arguments only)
+Source: brand/art/gpt-logo-sheet-hibiscus.png (the hibiscus is lime there; recoloured to red).
+Output: brand/svg/*.svg and intermediate PNGs in brand/svg/work/.
 """
 from pathlib import Path
 import re
@@ -15,7 +15,7 @@ SRC = ROOT / "art" / "gpt-logo-sheet-hibiscus.png"
 OUT = ROOT / "svg"
 WORK = OUT / "work"
 
-# Палитра бренда: всё в знаке приводится к этим цветам.
+# Brand palette: every colour in a mark is snapped to these.
 PALETTE = {
     "white": (0xFF, 0xFF, 0xFF),
     "palm": (0x1F, 0x6B, 0x45),
@@ -26,7 +26,7 @@ PALETTE = {
     "flame_deep": (0xB5, 0x3A, 0x24),
 }
 
-# Ячейки листа (x0, y0, x1, y1) и рамка цветка внутри ячейки.
+# Sheet cells (x0, y0, x1, y1) and the flower box inside each cell.
 CELLS = {
     "emblem": {"box": (36, 181, 360, 529), "flower": (10, 30, 140, 185), "sticker": True},
     "dmark": {"box": (746, 185, 1056, 525), "flower": (30, 50, 135, 170)},
@@ -45,7 +45,7 @@ def prepare(name, spec, scale=3):
     W, H = im.size
     fx0, fy0, fx1, fy1 = [v * scale for v in spec["flower"]]
 
-    # Маска лаймового в рамке цветка, закрытая морфологией: это силуэт цветка.
+    # Mask of the lime inside the flower box, closed morphologically: the flower silhouette.
     mask = Image.new("L", im.size, 0)
     mp = mask.load()
     for y in range(fy0, fy1):
@@ -62,8 +62,8 @@ def prepare(name, spec, scale=3):
             if cp[x, y] and fx0 <= x < fx1 and fy0 <= y < fy1:
                 n = "flame" if n == "lime" else ("flame_deep" if n in ("palm", "night") else n)
             px[x, y] = PALETTE[n]
-    # Белый фон ячейки, связанный с краем, делаем прозрачным. Чтобы заливка не протекла
-    # в белое лицо через щель под клювом, сначала запечатываем силуэт закрытием маски.
+    # Make the white cell background connected to the edge transparent. So that the fill does not leak
+    # into the white face through the gap under the beak, seal the silhouette by closing the mask first.
     from PIL import ImageDraw
     subj = Image.new("L", im.size, 0)
     sp = subj.load()
@@ -72,7 +72,7 @@ def prepare(name, spec, scale=3):
             if px[x, y] != PALETTE["white"]:
                 sp[x, y] = 255
     if spec.get("sticker"):
-        # Ровная белая обводка-наклейка: размытие маски и порог дают скруглённый контур шире силуэта.
+        # Even white sticker outline: blurring the mask and thresholding gives a rounded contour wider than the silhouette.
         sealed = subj.filter(ImageFilter.GaussianBlur(14)).point(lambda v: 255 if v > 25 else 0)
         sealed = sealed.filter(ImageFilter.GaussianBlur(4)).point(lambda v: 255 if v > 127 else 0)
         inside = sealed.load()
@@ -103,15 +103,15 @@ def prepare(name, spec, scale=3):
 
 
 def trace(png, out):
-    # Только позиционно: на Python 3.14 vtracer 0.6 падает (SIGSEGV) на любом keyword-аргументе.
-    # Порядок: colormode, hierarchical, mode, filter_speckle, color_precision, layer_difference,
+    # Positional only: on Python 3.14 vtracer 0.6 crashes (SIGSEGV) on any keyword argument.
+    # Order: colormode, hierarchical, mode, filter_speckle, color_precision, layer_difference,
     # corner_threshold, length_threshold, max_iterations, splice_threshold, path_precision.
     vtracer.convert_image_to_svg_py(
         str(png), str(out),
         "color", "stacked", "spline", 12, 8, 8, 60, 4.0, 10, 45, 2,
     )
     svg = out.read_text()
-    # Снап цветов путей к палитре (vtracer слегка смещает значения).
+    # Snap path colours to the palette (vtracer shifts values slightly).
     def fix(m):
         hx = m.group(1)
         rgb = tuple(int(hx[i:i + 2], 16) for i in (0, 2, 4))
@@ -123,7 +123,7 @@ def trace(png, out):
 
 
 def crop_viewbox(png, svg_path, pad=4):
-    """viewBox по краю непрозрачного рисунка: знак без полей, чтобы стоять в строке как буква."""
+    """viewBox at the edge of the opaque drawing: a mark without margins, so it sits in a line like a letter."""
     x0, y0, x1, y1 = Image.open(png).getchannel("A").getbbox()
     x0, y0, x1, y1 = x0 - pad, y0 - pad, x1 + pad, y1 + pad
     w, h = x1 - x0, y1 - y0
