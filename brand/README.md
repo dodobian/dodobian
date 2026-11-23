@@ -15,4 +15,6 @@
 Palette "Mauritius": jungle `#0E2620`, palm `#1F6B45`, sage `#9DB8A0`, lime `#A6D608`,
 lagoon `#1FB5A8`, deep lagoon `#0E6E73`, flamboyant `#E8553A`, sand `#F3E7C9`, mango `#FFB347`.
 
-Art from GPT image generation; vector marks traced and drawn from it. Licence: not decided yet.
+Art from GPT image generation; vector marks traced and drawn from it. Licence: GPL-2.0-or-later,
+like the rest of the repository. The name and the logo are the project's identity: see the
+License section of the top-level README.
