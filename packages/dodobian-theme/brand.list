@@ -1,0 +1,5 @@
+# Files from the top-level brand/ directory, staged into brand/ of this package by packages/build.sh.
+art/wallpaper-lagoon-dodo-mouse.png
+svg/emblem.svg
+svg/dmark-small.svg
+svg/dmark-swirl.svg
