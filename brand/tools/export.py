@@ -4,7 +4,7 @@
 """Raster exports of the Dodobian marks.
 
 Run:    python3 brand/tools/export.py   (stdlib + the rsvg-convert binary from librsvg)
-Output: brand/png/avatar-1024.png        organisation avatar: emblem on sand, square
+Output: brand/png/avatar-1024.png        organisation avatar: D mark, transparent, square (reads at 20-40 px)
         brand/png/emblem-<N>.png         emblem, 48-256 px, transparent
         brand/png/dmark-<N>.png          D mark, 32-64 px, transparent
         brand/png/dmark-small-<N>.png    simplified D, 16-24 px, transparent
@@ -16,8 +16,9 @@ from pathlib import Path
 BRAND = Path(__file__).resolve().parents[1]
 SVG, PNG = BRAND / "svg", BRAND / "png"
 
-SAND = "#F3E7C9"
-AVATAR, AVATAR_FILL = 1024, 0.80  # emblem takes 80% of the side: room for GitHub's rounded mask
+AVATAR, AVATAR_FILL = 1024, 0.80  # the mark takes 80% of the side: room for GitHub's rounded mask
+AVATAR_BG = None  # transparent: the D itself is the avatar on light and dark pages; a colour like "#F3E7C9" adds a tile
+AVATAR_MARK = "dmark"  # the emblem blurs at the 20-40 px GitHub mostly shows; the D mark is drawn for it
 
 SIZES = {
     "emblem": (48, 64, 128, 256),
@@ -48,11 +49,11 @@ def avatar() -> None:
     side = AVATAR
     inner = side * AVATAR_FILL
     off = (side - inner) / 2
-    emblem = (SVG / "emblem.svg").read_text()
+    mark = (SVG / f"{AVATAR_MARK}.svg").read_text()
     doc = (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {side} {side}" width="{side}" height="{side}">'
-        f'<rect width="{side}" height="{side}" fill="{SAND}"/>'
-        f"{nested(emblem, off, off, inner, inner)}</svg>"
+        + (f'<rect width="{side}" height="{side}" fill="{AVATAR_BG}"/>' if AVATAR_BG else "")
+        + f"{nested(mark, off, off, inner, inner)}</svg>"
     )
     render(doc, PNG / f"avatar-{side}.png", side, side)
 
