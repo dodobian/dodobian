@@ -1,0 +1,163 @@
+<title>Логотип Dodobian</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Figtree:wght@400;500;600&family=Nunito:wght@800&display=swap">
+<style>
+/* Layout: one column; each section shows a mark on light and dark tiles side by side, then a size ladder and real panel mocks */
+:root{
+  --bg:#F2F6EE; --surface:#FFFFFF; --fg:#13241D; --muted:#4F6358; --line:#D3DDD1; --accent:#0E6E73;
+  --tile-light:#F7F4EA; --tile-dark:#0E2620; --ink-light:#0E2620; --ink-dark:#E3EEE5;
+  --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --f-body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-word:"Nunito","Varela Round","Segoe UI",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0A1A16; --surface:#10261F; --fg:#E3EEE5; --muted:#9DB8A0; --line:#24443A; --accent:#1FB5A8; color-scheme:dark } }
+:root[data-theme="dark"]{ --bg:#0A1A16; --surface:#10261F; --fg:#E3EEE5; --muted:#9DB8A0; --line:#24443A; --accent:#1FB5A8; color-scheme:dark }
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:16px;line-height:1.55}
+.wrap{max-width:1120px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 48px;display:grid;gap:52px}
+h1,h2{font-family:var(--f-display);margin:0;line-height:1.1;text-wrap:balance}
+h1{font-size:clamp(2.2rem,5vw,3.4rem);font-weight:800;letter-spacing:-.02em}
+h2{font-size:1.6rem;font-weight:700}
+p{margin:0;max-width:65ch}
+.eyebrow{font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.muted{color:var(--muted)}
+section,.head{display:grid;gap:14px}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:720px){.pair{grid-template-columns:1fr}}
+.tile{border-radius:14px;display:grid;place-items:center;padding:28px 20px;min-width:0}
+.tile.l{background:var(--tile-light);color:var(--ink-light)}
+.tile.d{background:var(--tile-dark);color:var(--ink-dark)}
+.tile img{display:block}
+.emb{width:min(260px,70%);height:auto;aspect-ratio:1}
+.dm{width:min(200px,55%);height:auto;aspect-ratio:1}
+.word{display:inline-flex;align-items:baseline;gap:.02em;font-family:var(--f-word);font-weight:800;font-size:clamp(2.6rem,7vw,4.6rem);letter-spacing:-.015em;line-height:1}
+.word img{height:.74em;width:auto;align-self:baseline;margin-right:.03em}
+.ladder{display:grid;gap:10px}
+.lrow{display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:center}
+@media (max-width:560px){.lrow{grid-template-columns:1fr}}
+.lrow b{font-weight:600}
+.lrow small{display:block;color:var(--muted);font-size:.8rem}
+.strip{display:flex;flex-wrap:wrap;gap:8px}
+.strip div{display:flex;align-items:end;gap:14px;padding:10px 14px;border-radius:10px}
+.strip .l{background:var(--tile-light)}.strip .d{background:var(--tile-dark)}
+.panels{display:grid;gap:10px}
+.panel{display:flex;align-items:center;gap:14px;height:28px;padding:0 10px;border-radius:7px;font:13px "Noto Sans","DejaVu Sans",var(--f-body)}
+.panel b{display:flex;align-items:center;gap:6px;font-weight:600}
+.panel.l{background:#E6EEE5;color:#14241D}.panel.d{background:#0A1C17;color:#DDEADF}
+.panel .sp{flex:1}
+.files{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.files li{display:grid;grid-template-columns:minmax(0,220px) 1fr;gap:12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+@media (max-width:560px){.files li{grid-template-columns:1fr}}
+code{font-family:ui-monospace,"JetBrains Mono","DejaVu Sans Mono",monospace;font-size:.85em}
+ol{margin:0;padding-left:1.3em;display:grid;gap:8px;max-width:70ch}
+.swirls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+@media (max-width:760px){.swirls{grid-template-columns:1fr}}
+.sw{display:grid;gap:10px;align-content:start}
+.sw .pairs{display:grid;grid-template-columns:1fr 1fr;border-radius:12px;overflow:hidden}
+.sw .pairs div{display:grid;place-items:center;padding-block:22px}
+.sw .pairs .l{background:var(--tile-light)}.sw .pairs .d{background:var(--tile-dark)}
+.sw img.big{width:96px;height:96px}
+.sw .mini{display:flex;align-items:end;gap:10px;justify-content:center;padding:8px;border-radius:8px;background:var(--tile-light)}
+.spin{animation:spin 1.4s linear infinite}
+@keyframes spin{to{transform:rotate(-360deg)}}
+@media (prefers-reduced-motion: reduce){.spin{animation:none}}
+.boot{display:grid;place-items:center;gap:14px;background:#0E2620;color:#9DB8A0;border-radius:12px;padding:34px 16px;font-size:.9rem}
+
+</style>
+
+<div class="wrap">
+  <div class="head">
+    <div class="eyebrow">Бренд · 23 ноября 2026</div>
+    <h1>Логотип Dodobian</h1>
+    <p class="muted">Знаки из рисунка GPT, переведённые в вектор. Гибискус перекрашен в красный фламбуаян, все цвета приведены к палитре «Маврикий». Знаков три, каждый работает в своём диапазоне размеров. Плюс фирменная спираль.</p>
+  </div>
+
+  <section aria-labelledby="h-emb">
+    <div class="eyebrow">Общий логотип</div>
+    <h2 id="h-emb">Эмблема</h2>
+    <p class="muted">Голова додо с гибискусом. Белая обводка-наклейка держит силуэт на тёмных панелях. Для 48 пикселей и крупнее: экран входа, «О системе», заставка, сайт.</p>
+    <div class="pair">
+      <div class="tile l"><img class="emb" data-svg="emblem" alt="Эмблема Dodobian на светлом фоне"></div>
+      <div class="tile d"><img class="emb" data-svg="emblem" alt="Эмблема Dodobian на тёмном фоне"></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-word">
+    <div class="eyebrow">Надпись</div>
+    <h2 id="h-word">D-знак как первая буква</h2>
+    <p class="muted">Знак «D» стоит на базовой линии и равен по высоте заглавной букве. Дальше идёт «odobian». Шрифт пока Nunito ExtraBold как черновик: в финале надпись переводится в кривые.</p>
+    <div class="pair">
+      <div class="tile l"><span class="word"><img data-svg="dmark" alt="D">odobian</span></div>
+      <div class="tile d"><span class="word"><img data-svg="dmark" alt="D">odobian</span></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-size">
+    <div class="eyebrow">Размеры</div>
+    <h2 id="h-size">Какой знак где</h2>
+    <div class="ladder">
+      <div class="lrow"><div><b>Эмблема</b><small>48 px и крупнее</small></div><div class="strip"><div class="l"><img data-svg="emblem" width="96" height="96" alt=""><img data-svg="emblem" width="64" height="64" alt=""><img data-svg="emblem" width="48" height="48" alt=""></div><div class="d"><img data-svg="emblem" width="96" height="96" alt=""><img data-svg="emblem" width="64" height="64" alt=""><img data-svg="emblem" width="48" height="48" alt=""></div></div></div>
+      <div class="lrow"><div><b>D-знак</b><small>32–64 px, надпись</small></div><div class="strip"><div class="l"><img data-svg="dmark" width="64" height="64" alt=""><img data-svg="dmark" width="48" height="48" alt=""><img data-svg="dmark" width="32" height="32" alt=""></div><div class="d"><img data-svg="dmark" width="64" height="64" alt=""><img data-svg="dmark" width="48" height="48" alt=""><img data-svg="dmark" width="32" height="32" alt=""></div></div></div>
+      <div class="lrow"><div><b>Малый D</b><small>16–24 px, нарисован руками</small></div><div class="strip"><div class="l"><img data-svg="small" width="24" height="24" alt=""><img data-svg="small" width="16" height="16" alt=""></div><div class="d"><img data-svg="small" width="24" height="24" alt=""><img data-svg="small" width="16" height="16" alt=""></div></div></div>
+    </div>
+    <div class="panels" aria-label="Знак в панели">
+      <div class="panel l"><b><img data-svg="small" width="16" height="16" alt="">Приложения</b><span>Места</span><span>Система</span><span class="sp"></span><span>RU</span><span>18:42</span></div>
+      <div class="panel d"><b><img data-svg="small" width="16" height="16" alt="">Приложения</b><span>Места</span><span>Система</span><span class="sp"></span><span>RU</span><span>18:42</span></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-swirl">
+    <div class="eyebrow">Завиток</div>
+    <h2 id="h-swirl">Одна спираль на всё</h2>
+    <p class="muted">Своя спираль с намёком на завиток Debian, как спиральная «b» у drew. Кривая одна и та же, построена по формуле: в букве «d», в хвосте додо и в спиннере загрузки.</p>
+    <div class="swirls">
+      <div class="sw"><b>Спиральная «d»</b><span class="muted" style="font-size:.9rem">Вторичный знак: бандана у додо, «О системе», favicon.</span>
+        <div class="pairs"><div class="l"><img class="big" data-svg="dswirl" alt="Спиральная d на светлом"></div><div class="d"><img class="big" data-svg="dswirl" alt="Спиральная d на тёмном"></div></div>
+        <div class="mini"><img data-svg="dswirl" width="32" height="32" alt=""><img data-svg="dswirl" width="24" height="24" alt=""><img data-svg="dswirl" width="16" height="16" alt=""></div></div>
+      <div class="sw"><b>Хвост-завиток</b><span class="muted" style="font-size:.9rem">Лаймовая спираль в хвосте додо и в узорах.</span>
+        <div class="pairs"><div class="l"><img class="big" data-svg="swirl" alt="Завиток на светлом"></div><div class="d"><img class="big" data-svg="swirl" alt="Завиток на тёмном"></div></div>
+        <div class="mini"><img data-svg="swirl" width="32" height="32" alt=""><img data-svg="swirl" width="24" height="24" alt=""><img data-svg="swirl" width="16" height="16" alt=""></div></div>
+      <div class="sw"><b>Спиннер</b><span class="muted" style="font-size:.9rem">Тот же завиток крутится при загрузке и ожидании.</span>
+        <div class="boot"><img class="spin" data-svg="swirl" width="56" height="56" alt="Спиннер загрузки"><span>Загрузка Dodobian…</span></div></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-files">
+    <div class="eyebrow">Файлы</div>
+    <h2 id="h-files">Где лежит</h2>
+    <ul class="files">
+      <li><code>brand/svg/emblem.svg</code><span>эмблема, трассировка <code>vtracer</code>, 23 контура</span></li>
+      <li><code>brand/svg/dmark.svg</code><span>D-знак, трассировка, 21 контур</span></li>
+      <li><code>brand/svg/dmark-small.svg</code><span>малый D, семь фигур вручную</span></li>
+      <li><code>brand/svg/dmark-swirl.svg</code>, <code>swirl.svg</code>, <code>spinner.svg</code><span>спираль по формуле, <code>brand/tools/swirl.py</code></span></li>
+      <li><code>brand/tools/trace.py</code><span>повторяет трассировку из листа GPT: перекраска цветка, снап к палитре, прозрачный фон</span></li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="h-next">
+    <div class="eyebrow">Дальше</div>
+    <h2 id="h-next">Что осталось</h2>
+    <ol>
+      <li>Шрифт надписи: выбрать окончательно и перевести «odobian» в кривые.</li>
+      <li>Одноцветные версии для символьных иконок GTK и трея.</li>
+      <li>Набор иконки в размерах 16, 22, 24, 32, 48, 64, 128, 256 для темы и экрана входа.</li>
+    </ol>
+  </section>
+</div>
+
+<script type="text/plain" id="svg-emblem">@@EMBLEM@@</script>
+<script type="text/plain" id="svg-dmark">@@DMARK@@</script>
+<script type="text/plain" id="svg-small">@@SMALL@@</script>
+<script type="text/plain" id="svg-swirl">@@SWIRL@@</script>
+<script type="text/plain" id="svg-dswirl">@@DSWIRL@@</script>
+<script>
+(function(){
+  const url={};
+  ["emblem","dmark","small","swirl","dswirl"].forEach(k=>{
+    const t=document.getElementById("svg-"+k).textContent;
+    url[k]=URL.createObjectURL(new Blob([t],{type:"image/svg+xml"}));
+  });
+  document.querySelectorAll("img[data-svg]").forEach(i=>{i.src=url[i.dataset.svg]});
+})();
+</script>

@@ -1,0 +1,16 @@
+# build output
+*.deb
+*.changes
+*.buildinfo
+build/
+out/
+brand/svg/work/
+# local environments
+.venv/
+__pycache__/
+# secrets never live here
+*.key
+*.gpg
+secring*
+.env
+.env.*
