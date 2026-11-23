@@ -10,6 +10,8 @@
 | `art/` | wallpaper and the GPT source sheets the marks were traced from |
 | `tools/trace.py` | traces `emblem.svg` and `dmark.svg` from the GPT sheet, recolors the hibiscus, snaps to the palette |
 | `tools/swirl.py` | builds the swirl marks from one formula (stdlib only) |
+| `tools/export.py` | renders `png/`: the organisation avatar and icon sizes of the marks (needs `rsvg-convert`) |
+| `png/` | generated rasters: `avatar-1024.png`, emblem 48–256, D mark 32–64, small D 16–24 |
 | `pages/` | design drafts: palette and logo pages |
 
 Palette "Mauritius": jungle `#0E2620`, palm `#1F6B45`, sage `#9DB8A0`, lime `#A6D608`,
