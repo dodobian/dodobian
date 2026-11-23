@@ -21,6 +21,8 @@ packages on top. The mascot is the dodo, a bird that lived only on Mauritius.
 
 Status: early prototype. Nothing here is ready to install.
 
+Rules for changes: see `CONTRIBUTING.md`.
+
 ## License
 
 Copyright (C) 2026 The Dodobian authors (see `AUTHORS`).
