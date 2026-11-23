@@ -33,6 +33,8 @@ of the License, or (at your option) any later version. See `LICENSE`.
 SPDX-License-Identifier: `GPL-2.0-or-later`
 
 Patches to Labwc in `labwc/` follow Labwc's own licence, GPL-2.0-only.
+The Baloo 2 font in `brand/fonts/` is third-party work under the SIL Open Font License 1.1
+(`brand/fonts/OFL.txt`).
 
 The name "Dodobian" and the dodo logo identify this project. The licence covers the files,
 not the name: please do not present another product as Dodobian or as endorsed by it.
