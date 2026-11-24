@@ -1,0 +1,42 @@
+{
+  "name": "Mauritius",
+  "about": "Brand colours, then the roles a theme is written in. Templates name roles, never colours. A role takes a brand colour by name or a hex for a neutral tint. No fitting role: add one here with its meaning, do not copy a hex from a neighbouring config. Applied by brand/tools/theme.py.",
+  "brand": {
+    "jungle": "#0E2620",
+    "palm": "#1F6B45",
+    "sage": "#9DB8A0",
+    "lime": "#A6D608",
+    "lagoon": "#1FB5A8",
+    "deep-lagoon": "#0E6E73",
+    "flamboyant": "#E8553A",
+    "sand": "#F3E7C9",
+    "mango": "#FFB347"
+  },
+  "variants": {
+    "light": {
+      "panel":      { "color": "#E6EEE5",     "use": "panel background" },
+      "panel-fg":   { "color": "#14241D",     "use": "panel text and buttons" },
+      "win":        { "color": "#FBFCF8",     "use": "menus, tooltips, OSD: raised surfaces" },
+      "popup":      { "color": "#FFFFFF",     "use": "desktop-switch indicator background" },
+      "title":      { "color": "#EEF2EC",     "use": "inactive window title bar" },
+      "title-on":   { "color": "#DCEBE5",     "use": "active window title bar, menu title" },
+      "text":       { "color": "jungle",      "use": "text on surfaces and title bars, title-bar buttons" },
+      "muted":      { "color": "#56695E",     "use": "secondary text: inactive titles, minimized windows" },
+      "faint":      { "color": "#7B8A80",     "use": "inactive title-bar buttons" },
+      "border":     { "color": "#C9D5CB",     "use": "borders of the panel, buttons, menus, inactive windows" },
+      "line":       { "color": "#D2DDD2",     "use": "separators inside menus" },
+      "btn":        { "color": "#F4F7F1",     "use": "taskbar button background" },
+      "hover":      { "color": "#D6E3D9",     "use": "panel item under the pointer" },
+      "primary":    { "color": "deep-lagoon", "use": "action and focus: active window border, active markers" },
+      "sel":        { "color": "#CBEAE5",     "use": "selection background: active task, active desktop, menu item" },
+      "sel-fg":     { "color": "#0B2B28",     "use": "text on sel" },
+      "sel-border": { "color": "#8FC9C1",     "use": "border of a selected button" },
+      "danger":     { "color": "flamboyant",  "use": "rare attention: toggled keybind indicator" },
+      "shadow":     { "color": "jungle",      "use": "window shadows, always with alpha" }
+    }
+  },
+  "targets": [
+    { "template": "packages/dodobian-theme/labwc/themerc.in",     "output": "packages/dodobian-theme/labwc/themerc",     "variant": "light", "comment": "#" },
+    { "template": "packages/dodobian-theme/waybar/style.css.in",  "output": "packages/dodobian-theme/waybar/style.css",  "variant": "light", "comment": "/* */" }
+  ]
+}

@@ -13,6 +13,9 @@ out="$root/build/$pkg"
 rm -rf "$out" && mkdir -p "$out"
 image=${DODOBIAN_BUILD_IMAGE:-debian:forky}
 
+# Theme files are generated from brand/palette.json: refuse to build from stale or hand-edited ones.
+python3 "$root/brand/tools/theme.py" --check
+
 docker run --rm -v "$root:/src:ro" -v "$out:/out" -e PKG="$pkg" -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
   "$image" sh -euc '
     export DEBIAN_FRONTEND=noninteractive

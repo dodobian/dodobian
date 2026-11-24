@@ -18,5 +18,9 @@ Builds in a clean `debian:forky` container (Docker), runs `lintian`, and leaves 
 `build/<package>/`. Nothing is installed on the host. Files a package takes from the top-level
 `brand/` directory are listed in its `brand.list`.
 
+The labwc theme and the Waybar style are generated from `brand/palette.json` by
+`brand/tools/theme.py`: edit their `.in` templates, not the files themselves. `build.sh` refuses
+to build when they are stale.
+
 Install paths follow one rule: distribution defaults in `/usr/share`, never `/etc/skel`, and
 maintainer scripts never touch `$HOME`. A user's own `~/.config` always wins.
