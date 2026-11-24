@@ -4,8 +4,8 @@
 |---|---|
 | `svg/emblem.svg` | main logo, 48 px and up (login screen, About, splash, site) |
 | `svg/dmark.svg` | D mark, 32–64 px, first letter of the wordmark "D·odobian" |
-| `svg/dmark-small.svg` | simplified D, 16–24 px (panel, tray), drawn by hand |
-| `svg/dmark-swirl.svg` | spiral "d", secondary mark |
+| `svg/dmark-small.svg` | simplified D, 16–24 px (tray), drawn by hand |
+| `svg/dmark-swirl.svg` | spiral "d", secondary mark; the menu button at the start of the panel |
 | `svg/wordmark-light.svg`, `svg/wordmark-dark.svg` | the wordmark "D·odobian": D mark + Baloo 2 ExtraBold as outlines; palm text for light backgrounds, light palm `#4CA874` for dark |
 | `svg/swirl.svg`, `svg/spinner.svg` | the brand swirl and the loading spinner (same curve) |
 | `art/` | wallpaper and the GPT source sheets the marks were traced from |

@@ -1,12 +1,12 @@
 /* Dodobian Waybar style, "Mauritius" palette, light. SPDX-License-Identifier: GPL-2.0-or-later */
 * { font-family: "Noto Sans", "Font Awesome 6 Free"; font-size: 13px; border-radius: 0; min-height: 0; }
-window#waybar { background: @@panel@@; color: @@panel-fg@@; }
+window#waybar { background: @@panel@@; color: @@text@@; }
 window#waybar.top { border-bottom: 1px solid @@border@@; }
 window#waybar.bottom { border-top: 1px solid @@border@@; }
-button { border: none; box-shadow: none; text-shadow: none; background: transparent; color: @@panel-fg@@; }
+button { border: none; box-shadow: none; text-shadow: none; background: transparent; color: @@text@@; }
 #custom-apps, #custom-places, #custom-system, #custom-desktop, #tray, #pulseaudio, #clock { padding: 0 10px; }
 #custom-apps { font-weight: bold; padding-left: 32px;
-  background-image: url("/usr/share/dodobian/brand/dmark-small.svg");
+  background-image: url("/usr/share/dodobian/brand/dmark-swirl.svg");
   background-size: 18px 18px; background-repeat: no-repeat; background-position: 9px center; }
 #custom-apps:hover, #custom-places:hover, #custom-system:hover, #custom-desktop:hover { background-color: @@hover@@; border-radius: 6px; }
 #taskbar button { margin: 3px 2px; padding: 0 9px; border: 1px solid @@border@@; border-bottom-width: 3px; border-radius: 6px; background: @@btn@@; }
@@ -25,9 +25,9 @@ tooltip label { color: @@text@@; }
 /* Desktop-switch indicator (LG only): the number of the desktop just entered, then it fades out.
    Do not call this bar "osd": that is a built-in Adwaita class and paints a dark square. */
 @keyframes pd-osd {
-  0%   { background-color: @@popup@@; color: @@text@@; border-top-color: @@primary@@; border-left-color: @@primary@@; border-right-color: @@primary@@; border-bottom-color: @@primary@@; }
-  65%  { background-color: @@popup@@; color: @@text@@; border-top-color: @@primary@@; border-left-color: @@primary@@; border-right-color: @@primary@@; border-bottom-color: @@primary@@; }
-  100% { background-color: @@popup rgba 0@@; color: @@text rgba 0@@; border-top-color: @@primary rgba 0@@; border-left-color: @@primary rgba 0@@; border-right-color: @@primary rgba 0@@; border-bottom-color: @@primary rgba 0@@; }
+  0%   { background-color: @@win@@; color: @@text@@; border-top-color: @@primary@@; border-left-color: @@primary@@; border-right-color: @@primary@@; border-bottom-color: @@primary@@; }
+  65%  { background-color: @@win@@; color: @@text@@; border-top-color: @@primary@@; border-left-color: @@primary@@; border-right-color: @@primary@@; border-bottom-color: @@primary@@; }
+  100% { background-color: @@win rgba 0@@; color: @@text rgba 0@@; border-top-color: @@primary rgba 0@@; border-left-color: @@primary rgba 0@@; border-right-color: @@primary rgba 0@@; border-bottom-color: @@primary rgba 0@@; }
 }
 window#waybar.deskpop { background: transparent; border: none; }
 window#waybar.deskpop #workspaces button,

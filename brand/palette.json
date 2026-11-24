@@ -15,12 +15,10 @@
   "variants": {
     "light": {
       "panel":      { "color": "#E6EEE5",     "use": "panel background" },
-      "panel-fg":   { "color": "#14241D",     "use": "panel text and buttons" },
-      "win":        { "color": "#FBFCF8",     "use": "menus, tooltips, OSD: raised surfaces" },
-      "popup":      { "color": "#FFFFFF",     "use": "desktop-switch indicator background" },
+      "win":        { "color": "#FBFCF8",     "use": "menus, tooltips, OSDs, the desktop-switch indicator: raised surfaces" },
       "title":      { "color": "#EEF2EC",     "use": "inactive window title bar" },
       "title-on":   { "color": "#DCEBE5",     "use": "active window title bar, menu title" },
-      "text":       { "color": "jungle",      "use": "text on surfaces and title bars, title-bar buttons" },
+      "text":       { "color": "jungle",      "use": "all text: panel, surfaces, title bars; title-bar buttons" },
       "muted":      { "color": "#56695E",     "use": "secondary text: inactive titles, minimized windows" },
       "faint":      { "color": "#7B8A80",     "use": "inactive title-bar buttons" },
       "border":     { "color": "#C9D5CB",     "use": "borders of the panel, buttons, menus, inactive windows" },

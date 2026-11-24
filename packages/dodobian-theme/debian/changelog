@@ -1,3 +1,13 @@
+dodobian-theme (0.2.0) unstable; urgency=medium
+
+  * Theme generated from palette roles (brand/palette.json).
+  * Panel menu button shows the swirl d instead of the small D mark.
+  * One text colour (jungle) for the panel too; the desktop-switch
+    indicator uses the same background as menus and OSDs.
+  * Drop the small D mark, no longer used.
+
+ -- dmitrax <4255553+dmitrax@users.noreply.github.com>  Tue, 24 Nov 2026 11:30:00 +0400
+
 dodobian-theme (0.1.0) unstable; urgency=medium
 
   * Initial release: labwc theme, Waybar style, wallpaper and marks.
