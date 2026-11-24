@@ -1,0 +1,63 @@
+Description: let the session choose the primary monitor
+ Over Wayland, libxfce4windowing learns the primary output only from Xfce's own
+ compositor, through a private protocol. Under any other compositor (labwc, for
+ Dodobian) it guesses: a laptop panel, else the monitor at 0,0, else the first.
+ With a monitor on the left that is not the main one, the guess is wrong, and
+ xfdesktop puts the desktop icons there.
+ .
+ Moving the main monitor to 0,0 and the left one to negative coordinates does
+ move the icons, but it breaks X11 programs: the XWayland root then starts at
+ the main monitor, and windows on the left one stop receiving the pointer.
+ .
+ This patch reads XFW_PRIMARY_MONITOR before guessing: a connector name, or
+ several separated by commas, the first connected one winning.
+Author: The Dodobian authors
+Forwarded: not-yet
+Last-Update: 2026-11-24
+---
+--- a/libxfce4windowing/xfw-monitor.c
++++ b/libxfce4windowing/xfw-monitor.c
+@@ -1130,9 +1130,42 @@
+     }
+ }
+ 
++// The session names the primary monitor in XFW_PRIMARY_MONITOR: one connector name, or several
++// separated by commas, the first connected one winning (e.g. "DP-2,eDP-1" for a docked laptop).
++// Only Xfce's own compositor can tell us the primary output over Wayland; under any other
++// compositor this is the only way to choose it instead of guessing.
++static XfwMonitor *
++primary_monitor_from_environment(GList *monitors) {
++    const char *wanted = g_getenv("XFW_PRIMARY_MONITOR");
++    if (wanted == NULL || *wanted == '\0') {
++        return NULL;
++    }
++
++    XfwMonitor *found = NULL;
++    gchar **names = g_strsplit(wanted, ",", -1);
++    for (gchar **name = names; found == NULL && *name != NULL; name++) {
++        g_strstrip(*name);
++        if (**name == '\0') {
++            continue;
++        }
++        for (GList *l = monitors; l != NULL; l = l->next) {
++            const char *connector = xfw_monitor_get_connector(XFW_MONITOR(l->data));
++            if (connector != NULL && strcmp(connector, *name) == 0) {
++                found = XFW_MONITOR(l->data);
++                break;
++            }
++        }
++    }
++    g_strfreev(names);
++    return found;
++}
++
+ XfwMonitor *
+ _xfw_monitor_guess_primary_monitor(GList *monitors) {
+-    XfwMonitor *maybe_primary = NULL;
++    XfwMonitor *maybe_primary = primary_monitor_from_environment(monitors);
++    if (maybe_primary != NULL) {
++        return maybe_primary;
++    }
+ 
+     for (GList *l = monitors; l != NULL; l = l->next) {
+         XfwMonitor *monitor = XFW_MONITOR(l->data);
