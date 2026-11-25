@@ -25,15 +25,30 @@ apt-get install -y -qq --no-install-recommends libgl1-mesa-dri libegl-mesa0 grim
 run=$(mktemp -d)
 mkdir "$run/config" "$run/xdg"
 chmod 700 "$run/xdg"
+export XDG_RUNTIME_DIR="$run/xdg" WLR_BACKENDS=headless WLR_HEADLESS_OUTPUTS=1 WLR_RENDERER=gles2 \
+	WLR_RENDERER_FORCE_SOFTWARE=1
+startup="sh -c 'sleep 2; grim $run/shot.png; labwc --exit'"
 rc=0
-XDG_RUNTIME_DIR="$run/xdg" WLR_BACKENDS=headless WLR_HEADLESS_OUTPUTS=1 WLR_RENDERER=gles2 \
-	WLR_RENDERER_FORCE_SOFTWARE=1 timeout 60 \
-	labwc -d -C "$run/config" -s "sh -c 'sleep 2; grim $run/shot.png; labwc --exit'" \
-	> "$run/log" 2>&1 || rc=$?
+timeout 60 labwc -d -C "$run/config" -s "$startup" > "$run/log" 2>&1 || rc=$?
 if [ "$rc" != 0 ] || ! grep -q 'Creating scenefx FX renderer' "$run/log" \
 	|| ! file "$run/shot.png" 2>/dev/null | grep -q 'PNG image'; then
+	set +e # from here on, report as much as possible
 	echo "headless run failed (exit $rc), last lines of the labwc log:"
 	tail -n 40 "$run/log"
+	# Run it again under gdb, with debug symbols of labwc (built next to it) and SceneFX.
+	echo "--- backtrace"
+	. /etc/os-release
+	echo "Types: deb
+URIs: http://deb.debian.org/debian-debug
+Suites: $VERSION_CODENAME-debug
+Components: main
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg" > /etc/apt/sources.list.d/debug.sources
+	apt-get update -qq
+	apt-get install -y -qq --no-install-recommends gdb >/dev/null
+	ls /out/labwc-dbgsym_*.deb >/dev/null 2>&1 && apt-get install -y -qq /out/labwc-dbgsym_*.deb >/dev/null
+	apt-get install -y -qq libscenefx-0.5-dbgsym >/dev/null 2>&1 || echo "(no SceneFX debug symbols)"
+	timeout 120 gdb --batch -ex run -ex 'bt full' \
+		--args labwc -C "$run/config" -s "$startup" 2>&1 | grep -v -E '^\[(New|Thread)' | tail -n 80
 	exit 1
 fi
 echo "headless run: $(file -b "$run/shot.png")"
