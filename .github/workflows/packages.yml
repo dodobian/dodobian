@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2026 The Dodobian authors
+#
+# Build every package with packages/build.sh: config checks, lintian, source and binaries, and an
+# install/purge test in a clean container. The weekly run rebuilds the patched Debian packages
+# against the current archive source, so a new Debian revision or a patch that no longer applies
+# shows up here. Nothing is signed or published: release signing is done locally.
+name: packages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: packages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.package }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # One line per package and architecture. Architecture "all" packages build once, on amd64.
+        include:
+          - { package: dodobian-theme, arch: all, runner: ubuntu-24.04 }
+          - { package: libxfce4windowing, arch: amd64, runner: ubuntu-24.04 }
+          - { package: libxfce4windowing, arch: arm64, runner: ubuntu-24.04-arm }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build, check and test
+        env:
+          PKG: ${{ matrix.package }}
+        run: packages/build.sh "$PKG"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ matrix.package }}-${{ matrix.arch }}
+          path: build/${{ matrix.package }}/
+          retention-days: 14

@@ -39,3 +39,13 @@ to build when they are stale.
 
 Install paths follow one rule: distribution defaults in `/usr/share`, never `/etc/skel`, and
 maintainer scripts never touch `$HOME`. A user's own `~/.config` always wins.
+
+## CI
+
+`.github/workflows/packages.yml` runs `build.sh` for every package on each push to `main` and each pull
+request: architecture `all` packages on amd64, the others on amd64 and arm64. A weekly run rebuilds
+the patched Debian packages against the current archive source, so a new Debian revision or a patch
+that no longer applies turns the run red. The results (`.deb`, `.dsc`, `lintian.txt`) are kept as
+run artifacts for 14 days. CI signs and publishes nothing. A new package is one more line in the
+workflow's matrix. GitHub pauses scheduled runs after 60 days without activity in the repository;
+re-enable the workflow if that happens.
