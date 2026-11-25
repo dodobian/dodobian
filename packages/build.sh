@@ -16,12 +16,14 @@
 #                               That sorts above the same Debian revision only: a newer Debian
 #                               revision (-2, an NMU, a stable update) sorts above ours and replaces
 #                               it on upgrade, so every new Debian revision has to be rebuilt.
+#                               Extra Build-Depends our patches need go in build-depends.
 #
 # Checks:
 #   - theme files are not stale against brand/palette.json (brand/tools/theme.py --check)
 #   - own packages: every *.xml passes xmllint, every *.json passes jq (strict JSON: no comments)
 #   - lintian finds no errors (warnings and info are reported, not fatal)
 #   - the binary packages install, remove and purge in a clean container, leaving no files behind
+#   - packages/<package>/test.sh, if there is one, passes in that container after install
 set -eu
 pkg=${1:?usage: packages/build.sh <package>}
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -69,8 +71,14 @@ docker run --rm -v "$root:/src:ro" -v "$out:/out" -e PKG="$pkg" -e KIND="$kind" 
     else
       apt-get install -y -qq --no-install-recommends dpkg-dev >/dev/null
       apt-get source -qq "$PKG" >/dev/null
-      apt-get build-dep -y -qq "$PKG" >/dev/null
       cd "$(find /work -mindepth 1 -maxdepth 1 -type d | head -n1)"
+      # Our patches may need more than the Debian package builds with.
+      if [ -f "/src/packages/$PKG/build-depends" ]; then
+        extra=$(grep -v -e "^#" -e "^$" "/src/packages/$PKG/build-depends" | paste -sd, -)
+        sed -i "0,/^Build-Depends:/s//Build-Depends: $extra,/" debian/control
+      fi
+      # From the local source, so the added Build-Depends count too.
+      apt-get build-dep -y -qq ./ >/dev/null
       mkdir -p debian/patches && touch debian/patches/series
       grep -v -e "^#" -e "^$" "/src/packages/$PKG/series" | while read -r p; do
         cp "/src/packages/$PKG/patches/$p" debian/patches/
@@ -103,13 +111,19 @@ ls -l "$out"
 echo "--- lintian"; cat "$out/lintian.txt"
 
 # Install, remove and purge in a clean container. Debug symbols are left out.
+# A package may bring its own test, packages/<package>/test.sh, run after install and before purge.
+# /dev/udmabuf, when the docker host has it, lets a test render with software GLES2 (llvmpipe).
 echo "--- install test"
-docker run --rm -v "$out:/out:ro" "$image" sh -euc '
+dev=
+if docker run --rm --device /dev/udmabuf "$image" true >/dev/null 2>&1; then dev="--device /dev/udmabuf"; fi
+# shellcheck disable=SC2086 # $dev is empty or one option and its argument
+docker run --rm $dev -v "$out:/out:ro" -v "$dir:/pkg:ro" "$image" sh -euc '
   export DEBIAN_FRONTEND=noninteractive
   debs=$(ls /out/*.deb | grep -v -- "-dbgsym_")
   names=$(for d in $debs; do dpkg-deb -f "$d" Package; done)
   apt-get update -qq
   apt-get install -y -qq --no-install-recommends $debs >/dev/null
+  if [ -f /pkg/test.sh ]; then echo "--- package test"; sh -eu /pkg/test.sh; fi
   for n in $names; do dpkg-query -L "$n"; done | sort -u > /tmp/files
   apt-get remove -y -qq $names >/dev/null
   # dpkg, not apt: a package without conffiles is forgotten on remove and apt can no longer find it.
