@@ -18,11 +18,20 @@ packages/build.sh dodobian-theme
 A directory with `debian/` is our own package. A directory with `series` is a Debian package rebuilt
 with our patches: `build.sh` fetches the source from the archive, adds the patches listed in `series`
 (from `patches/`, each with a header saying why) to its quilt stack, and appends `+dodobian<N>` to the
-version, N from `revision`, so it sorts above Debian's. A patch that no longer applies fails the build.
+version, N from `revision`. That sorts above the same Debian revision only: a newer Debian revision
+(`-2`, an NMU, a stable update) sorts above ours and replaces it on upgrade, so every new Debian
+revision has to be rebuilt. A patch that no longer applies fails the build.
 
-Builds in a clean `debian:forky` container (Docker), runs `lintian`, and leaves the result in
-`build/<package>/`. Nothing is installed on the host. Files a package takes from the top-level
-`brand/` directory are listed in its `brand.list`.
+Builds in a clean `debian:forky` container (Docker, pinned by digest), source and binaries, and leaves
+the result in `build/<package>/`. Nothing is installed on the host. Files a package takes from the
+top-level `brand/` directory are listed in its `brand.list`.
+
+Any failed check fails the build:
+
+- every `*.xml` in our own packages passes `xmllint`, every `*.json` passes `jq` (strict JSON, so no
+  comments: a broken config would otherwise start silently at login);
+- `lintian` finds no errors (warnings and info are printed, not fatal);
+- the binary packages install, remove and purge in a second clean container, leaving no files behind.
 
 The labwc theme and the Waybar style are generated from `brand/palette.json` by
 `brand/tools/theme.py`: edit their `.in` templates, not the files themselves. `build.sh` refuses
