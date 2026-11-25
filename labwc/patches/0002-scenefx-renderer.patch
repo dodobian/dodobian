@@ -1,0 +1,104 @@
+Description: Render the scene graph with SceneFX
+ Link Labwc against libscenefx-0.5 and create the SceneFX renderer instead of
+ the wlroots one, so later Dodobian patches can round all window corners and
+ draw soft shadows. On its own this patch changes nothing visible.
+ .
+ libscenefx must come before wlroots in the link order: it exports the same
+ wlr_scene_* symbols. The SceneFX renderer needs GLES2; Labwc no longer starts
+ with the pixman renderer. The node types SceneFX adds (shadow, blur) are
+ handled where Labwc switches on the node type.
+ .
+ Upstream Labwc declined SceneFX (labwc/labwc pull request 3751), so this is
+ carried downstream. The approach follows grigio/labwc (labwc-blur), without
+ its blur support.
+Author: The Dodobian authors
+Origin: vendor, https://github.com/dodobian/dodobian/tree/main/labwc
+Forwarded: not-needed
+---
+diff --git a/meson.build b/meson.build
+index c1f83a5..313119e 100644
+--- a/meson.build
++++ b/meson.build
+@@ -161,6 +161,10 @@ subdir('protocols')
+ labwc_deps = [
+   server_protos,
+   wayland_server,
++  # SceneFX renders the scene graph (rounded corners, shadows). It must come
++  # before wlroots: libscenefx exports the same wlr_scene_* symbols and the
++  # dynamic linker takes the first library that provides them.
++  dependency('scenefx-0.5', version: '>=0.5.0'),
+   wlroots,
+   xkbcommon,
+ 	xcb_ewmh,
+diff --git a/src/cycle/osd-thumbnail.c b/src/cycle/osd-thumbnail.c
+index df6bc5a..29fc537 100644
+--- a/src/cycle/osd-thumbnail.c
++++ b/src/cycle/osd-thumbnail.c
+@@ -73,6 +73,11 @@ render_node(struct wlr_render_pass *pass,
+ 		/* should be unreached */
+ 		wlr_log(WLR_ERROR, "ignoring rect");
+ 		break;
++	case WLR_SCENE_NODE_SHADOW:
++	case WLR_SCENE_NODE_OPTIMIZED_BLUR:
++	case WLR_SCENE_NODE_BLUR:
++		/* SceneFX effects are not drawn into window thumbnails */
++		break;
+ 	}
+ }
+ 
+diff --git a/src/debug.c b/src/debug.c
+index 8304624..76b8370 100644
+--- a/src/debug.c
++++ b/src/debug.c
+@@ -42,6 +42,12 @@ get_node_type(struct wlr_scene_node *node)
+ 			return "surface";
+ 		}
+ 		return "buffer";
++	case WLR_SCENE_NODE_SHADOW:
++		return "shadow";
++	case WLR_SCENE_NODE_OPTIMIZED_BLUR:
++		return "optimized-blur";
++	case WLR_SCENE_NODE_BLUR:
++		return "blur";
+ 	}
+ 	return "error";
+ }
+diff --git a/src/server.c b/src/server.c
+index 95cbc3a..1cecd4c 100644
+--- a/src/server.c
++++ b/src/server.c
+@@ -5,6 +5,7 @@
+ #include <signal.h>
+ #include <string.h>
+ #include <sys/wait.h>
++#include <scenefx/render/fx_renderer/fx_renderer.h>
+ #include <wlr/backend/headless.h>
+ #include <wlr/backend/multi.h>
+ #include <wlr/config.h>
+@@ -405,7 +406,7 @@ handle_renderer_lost(struct wl_listener *listener, void *data)
+ {
+ 	wlr_log(WLR_INFO, "Re-creating renderer after GPU reset");
+ 
+-	struct wlr_renderer *renderer = wlr_renderer_autocreate(server.backend);
++	struct wlr_renderer *renderer = fx_renderer_create(server.backend);
+ 	if (!renderer) {
+ 		wlr_log(WLR_ERROR, "Unable to create renderer");
+ 		return;
+@@ -559,9 +560,15 @@ server_init(void)
+ 	 * The renderer is responsible for defining the various pixel formats it
+ 	 * supports for shared memory, this configures that for clients.
+ 	 */
+-	server.renderer = wlr_renderer_autocreate(server.backend);
++	/*
++	 * The scene graph is rendered by SceneFX, which needs its own GLES2
++	 * renderer: a pixman or Vulkan renderer from wlr_renderer_autocreate()
++	 * cannot draw its effects.
++	 */
++	server.renderer = fx_renderer_create(server.backend);
+ 	if (!server.renderer) {
+-		wlr_log(WLR_ERROR, "unable to create renderer");
++		wlr_log(WLR_ERROR, "unable to create the SceneFX renderer "
++			"(it needs GLES2)");
+ 		exit(EXIT_FAILURE);
+ 	}
+ 

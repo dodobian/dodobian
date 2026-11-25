@@ -1,0 +1,2 @@
+# Extra Build-Depends added to the Debian package for our patches, one per line.
+libscenefx-0.5-dev

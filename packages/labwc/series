@@ -1,0 +1,4 @@
+# Patches added on top of the Debian package, in order. One file per patch, each with a "why" header.
+# They live in labwc/patches/ (patches -> ../../labwc/patches).
+0001-scenefx-scene-header.patch
+0002-scenefx-renderer.patch

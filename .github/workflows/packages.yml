@@ -35,6 +35,8 @@ jobs:
           - { package: dodobian-theme, arch: all, runner: ubuntu-24.04 }
           - { package: libxfce4windowing, arch: amd64, runner: ubuntu-24.04 }
           - { package: libxfce4windowing, arch: arm64, runner: ubuntu-24.04-arm }
+          - { package: labwc, arch: amd64, runner: ubuntu-24.04 }
+          - { package: labwc, arch: arm64, runner: ubuntu-24.04-arm }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

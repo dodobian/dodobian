@@ -6,6 +6,7 @@ Sources of our Debian packages. Configs ship as `.deb`, so `apt upgrade` updates
 |---|---|---|
 | `dodobian-theme` | all | labwc theme "Dodobian", Waybar style, wallpaper, marks for the panel |
 | `libxfce4windowing` | any | Debian's package rebuilt with our patches: the session can name the primary monitor (`XFW_PRIMARY_MONITOR`) |
+| `labwc` | any | Debian's package rebuilt with our Labwc patches from `labwc/patches/`: renders with SceneFX (needs GLES2), the base for rounded corners and shadows |
 
 Planned: `dodobian-session` (session, labwc and Waybar defaults, units), `dodobian-desktop` (metapackage).
 
@@ -20,7 +21,8 @@ with our patches: `build.sh` fetches the source from the archive, adds the patch
 (from `patches/`, each with a header saying why) to its quilt stack, and appends `+dodobian<N>` to the
 version, N from `revision`. That sorts above the same Debian revision only: a newer Debian revision
 (`-2`, an NMU, a stable update) sorts above ours and replaces it on upgrade, so every new Debian
-revision has to be rebuilt. A patch that no longer applies fails the build.
+revision has to be rebuilt. A patch that no longer applies fails the build. Extra Build-Depends the
+patches need are listed in `build-depends`.
 
 Builds in a clean `debian:forky` container (Docker, pinned by digest), source and binaries, and leaves
 the result in `build/<package>/`. Nothing is installed on the host. Files a package takes from the
@@ -31,7 +33,9 @@ Any failed check fails the build:
 - every `*.xml` in our own packages passes `xmllint`, every `*.json` passes `jq` (strict JSON, so no
   comments: a broken config would otherwise start silently at login);
 - `lintian` finds no errors (warnings and info are printed, not fatal);
-- the binary packages install, remove and purge in a second clean container, leaving no files behind.
+- the binary packages install, remove and purge in a second clean container, leaving no files behind;
+- `packages/<package>/test.sh`, if there is one, passes in that container after install. When the
+  docker host has `/dev/udmabuf`, it is passed in, so a test can render with software GLES2.
 
 The labwc theme and the Waybar style are generated from `brand/palette.json` by
 `brand/tools/theme.py`: edit their `.in` templates, not the files themselves. `build.sh` refuses
