@@ -4,7 +4,7 @@
 #
 # Build one of our Debian packages in a clean debian:forky container, check it, and test that it
 # installs and purges cleanly in a second clean container.
-# Usage: packages/build.sh <package>        e.g. packages/build.sh dodobian-theme
+# Usage: packages/build.sh <package>        e.g. packages/build.sh dodo-theme
 # Output: build/<package>/ (.deb, .dsc and source tarballs, .changes, .buildinfo, lintian.txt,
 #         test/ with what the package test leaves to look at).
 # Needs docker; installs nothing on the host. Any failed check fails the build.
@@ -25,6 +25,9 @@
 #   - lintian finds no errors (warnings and info are reported, not fatal)
 #   - the binary packages install, remove and purge in a clean container, leaving no files behind
 #   - packages/<package>/test.sh, if there is one, passes in that container after install
+#
+# A package that depends on another of ours lists it in packages/<package>/test-with: that package's
+# build/<other>/*.deb is installed alongside in the install test (and built first if missing).
 set -eu
 pkg=${1:?usage: packages/build.sh <package>}
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -117,16 +120,26 @@ echo "--- lintian"; cat "$out/lintian.txt"
 # A test may leave files for a human to look at (screenshots) in /test-out = build/<package>/test/.
 echo "--- install test"
 mkdir -p "$out/test"
+sibs=
+if [ -f "$dir/test-with" ]; then
+  sibs=$(grep -v -e "^#" -e "^$" "$dir/test-with" | tr '\n' ' ')
+  for s in $sibs; do
+    ls "$root/build/$s/"*.deb >/dev/null 2>&1 || sh "$root/packages/build.sh" "$s"
+  done
+fi
 dev=
 if docker run --rm --device /dev/udmabuf "$image" true >/dev/null 2>&1; then dev="--device /dev/udmabuf"; fi
 # shellcheck disable=SC2086 # $dev is empty or one option and its argument
 docker run --rm $dev -v "$out:/out:ro" -v "$dir:/pkg:ro" -v "$out/test:/test-out" \
+  -v "$root/build:/sibs:ro" -e SIBS="$sibs" \
   -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" "$image" sh -euc '
   export DEBIAN_FRONTEND=noninteractive
   debs=$(ls /out/*.deb | grep -v -- "-dbgsym_")
   names=$(for d in $debs; do dpkg-deb -f "$d" Package; done)
+  # Our other packages this one depends on: installed alongside, not tested here.
+  sibdebs=$(for s in $SIBS; do ls "/sibs/$s/"*.deb | grep -v -- "-dbgsym_"; done)
   apt-get update -qq
-  apt-get install -y -qq --no-install-recommends $debs >/dev/null
+  apt-get install -y -qq --no-install-recommends $sibdebs $debs >/dev/null
   if [ -f /pkg/test.sh ]; then
     echo "--- package test"
     rc=0; sh -eu /pkg/test.sh || rc=$?
