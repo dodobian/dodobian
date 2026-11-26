@@ -1,3 +1,11 @@
+dodobian-theme (0.2.2) unstable; urgency=medium
+
+  * Lighter, tighter window shadows (active 20 px at 20%, 4 px down; inactive
+    12 px at 13%, 2 px down), close to the shadows GTK4 and libadwaita windows
+    draw themselves, so windows look alike whoever draws the frame.
+
+ -- dmitrax <4255553+dmitrax@users.noreply.github.com>  Thu, 26 Nov 2026 22:30:00 +0400
+
 dodobian-theme (0.2.1) unstable; urgency=medium
 
   * Window shadows fall downwards (window.*.shadow.offset.y, read by the
