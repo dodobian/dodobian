@@ -4,11 +4,11 @@ window#waybar { background: @@panel@@; color: @@text@@; }
 window#waybar.top { border-bottom: 1px solid @@border@@; }
 window#waybar.bottom { border-top: 1px solid @@border@@; }
 button { border: none; box-shadow: none; text-shadow: none; background: transparent; color: @@text@@; }
-#custom-apps, #custom-places, #custom-system, #custom-desktop, #tray, #pulseaudio, #clock { padding: 0 10px; }
+#custom-apps, #custom-places, #custom-system, #custom-desktop, #custom-screenshot, #tray, #pulseaudio, #clock { padding: 0 10px; }
 #custom-apps { font-weight: bold; padding-left: 32px;
   background-image: url("/usr/share/dodo/brand/dmark-swirl.svg");
   background-size: 18px 18px; background-repeat: no-repeat; background-position: 9px center; }
-#custom-apps:hover, #custom-places:hover, #custom-system:hover, #custom-desktop:hover { background-color: @@hover@@; border-radius: 6px; }
+#custom-apps:hover, #custom-places:hover, #custom-system:hover, #custom-desktop:hover, #custom-screenshot:hover { background-color: @@hover@@; border-radius: 6px; }
 #taskbar button { margin: 3px 2px; padding: 0 9px; border: 1px solid @@border@@; border-bottom-width: 3px; border-radius: 6px; background: @@btn@@; }
 #taskbar button:hover { background: @@hover@@; }
 #taskbar button.active { background: @@sel@@; border-color: @@sel-border@@; border-bottom-color: @@primary@@; color: @@sel-fg@@; }
