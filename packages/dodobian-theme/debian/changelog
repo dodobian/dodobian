@@ -1,3 +1,10 @@
+dodobian-theme (0.2.1) unstable; urgency=medium
+
+  * Window shadows fall downwards (window.*.shadow.offset.y, read by the
+    Dodobian labwc with SceneFX shadows; other labwc builds ignore it).
+
+ -- dmitrax <4255553+dmitrax@users.noreply.github.com>  Thu, 26 Nov 2026 13:00:00 +0400
+
 dodobian-theme (0.2.0) unstable; urgency=medium
 
   * Theme generated from palette roles (brand/palette.json).

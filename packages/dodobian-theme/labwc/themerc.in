@@ -21,6 +21,8 @@ window.active.shadow.size: 44
 window.inactive.shadow.size: 26
 window.active.shadow.color: @@shadow/66@@
 window.inactive.shadow.color: @@shadow/38@@
+window.active.shadow.offset.y: 10
+window.inactive.shadow.offset.y: 6
 menu.border.width: 1
 menu.items.padding.x: 12
 menu.items.padding.y: 6
