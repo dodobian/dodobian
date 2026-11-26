@@ -24,10 +24,13 @@ starts it headless.
 2. `packages/build.sh labwc`. Patches are applied without fuzz, so one that no longer fits fails the
    build instead of landing in the wrong place; refresh it on top of the new release.
 
-**llvmpipe on amd64.** On amd64 our Labwc crashes Mesa llvmpipe on the first frame, while arm64 draws it
-(see the note in `packages/labwc/test.sh`). `tools/llvmpipe-probe/` draws SceneFX's operations
-one at a time on llvmpipe and reports which one crashes: run `tools/llvmpipe-probe/run.sh` locally
-or the `llvmpipe-probe` workflow (by hand, in the Actions tab).
+**llvmpipe on amd64.** Headless on Mesa llvmpipe, Labwc crashed on amd64 (arm64 drew). The cause
+is not SceneFX: wlroots' udmabuf allocator gives the 10x16 hardware cursor buffer a stride of
+40 bytes, and llvmpipe on x86 reads colour rows with aligned 16-byte loads. The package test
+therefore runs Labwc with a software cursor (see `packages/labwc/test.sh`). `tools/llvmpipe-probe/`
+draws SceneFX's operations, the cursor buffer and plain GLES2 cases one at a time on llvmpipe and
+reports which ones crash: run `tools/llvmpipe-probe/run.sh` locally or the `llvmpipe-probe`
+workflow (by hand, in the Actions tab).
 
 Licence: these patches modify Labwc and are distributed under Labwc's licence,
 GPL-2.0-only (https://github.com/labwc/labwc/blob/master/LICENSE). `tools/` is GPL-2.0-or-later.

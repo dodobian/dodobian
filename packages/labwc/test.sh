@@ -7,11 +7,12 @@
 #   2. With /dev/udmabuf: labwc starts headless on software GLES2 (Mesa llvmpipe), draws a frame
 #      that grim can capture, and exits cleanly. Without the device this part is skipped, and says so.
 #
-# llvmpipe on amd64: on GitHub's amd64 runners (Intel Xeon 6975P-C) llvmpipe (Mesa 26.1.6, LLVM 21)
-# crashes in its rasterizer thread while drawing SceneFX's first frame, whatever the vector width or
-# CPU feature limit; on arm64 the same run works. Until that is understood, the headless run is
-# required on arm64 and only reported on amd64, next to a Weston run on the same llvmpipe for
-# comparison. The link check is required everywhere. Real GPUs do not use llvmpipe.
+# Software cursor (WLR_NO_HARDWARE_CURSORS=1): on the headless backend wlroots would draw the cursor
+# into a "hardware" cursor buffer of its own, 10x16 from the udmabuf allocator, whose stride is
+# width * 4 = 40 bytes; llvmpipe on x86 reads colour rows with aligned 16-byte loads and crashes on
+# it (Mesa 26.1.6, wlroots 0.20.2; arm64 tolerates the unaligned rows). Not SceneFX: wlroots' own
+# renderer crashes the same way. Found with labwc/tools/llvmpipe-probe (wlr:cursor-hw,
+# gl:tex-small-dmabuf). A software cursor is drawn into the frame instead, so grim sees it too.
 export DEBIAN_FRONTEND=noninteractive
 apt-get install -y -qq --no-install-recommends binutils >/dev/null
 
@@ -32,7 +33,7 @@ run=$(mktemp -d)
 mkdir "$run/config" "$run/xdg"
 chmod 700 "$run/xdg"
 export XDG_RUNTIME_DIR="$run/xdg" WLR_BACKENDS=headless WLR_HEADLESS_OUTPUTS=1 WLR_RENDERER=gles2 \
-	WLR_RENDERER_FORCE_SOFTWARE=1
+	WLR_RENDERER_FORCE_SOFTWARE=1 WLR_NO_HARDWARE_CURSORS=1
 startup="sh -c 'sleep 2; grim $run/shot.png; labwc --exit'"
 
 # headless: start labwc once; exit status 0 only for a clean run with the SceneFX renderer and a frame.
@@ -47,22 +48,6 @@ headless() {
 
 if headless; then
 	echo "headless run: $(file -b "$run/shot.png") ($renderer)"
-	exit 0
-fi
-
-if [ "$(uname -m)" = x86_64 ]; then
-	echo "headless run FAILED on amd64, exit $rc ($renderer): not fatal, see the note on llvmpipe above"
-	echo "cpu: $(sed -n 's/^model name[[:space:]]*: //p' /proc/cpuinfo | head -n1)"
-	# The same llvmpipe without SceneFX: does any GLES compositor draw here?
-	apt-get install -y -qq --no-install-recommends weston >/dev/null 2>&1
-	mkdir -p "$run/w" && chmod 700 "$run/w"
-	wrc=0
-	XDG_RUNTIME_DIR="$run/w" timeout 10 weston --backend=headless --renderer=gl --idle-time=0 \
-		> "$run/weston.log" 2>&1 || wrc=$?
-	case "$wrc" in
-	124) echo "weston on the same llvmpipe: ran 10 s without crashing" ;;
-	*) echo "weston on the same llvmpipe: exit $wrc"; tail -n 5 "$run/weston.log" ;;
-	esac
 	exit 0
 fi
 
