@@ -30,7 +30,7 @@ llvm=$(ldd "$gallium" | sed -n 's/^[[:space:]]*\(libLLVM[^ ]*\).*/\1/p')
 	echo "flags:  $(grep -o -w -E 'avx512f|avx2|avx|sse4_1|asimd' /proc/cpuinfo | sort -u | tr '\n' ' ')"
 	echo "mesa:   $mesa ($(basename "$gallium"), $llvm)"
 	echo "env:    $(env | grep -E '^(LP_|GALLIUM_|GALLIVM_|MESA_|LIBGL_)' | tr '\n' ' ')"
-	echo "device: $([ -e /dev/udmabuf ] && echo /dev/udmabuf || echo 'no /dev/udmabuf: scene:* skipped')"
+	echo "device: $([ -e /dev/udmabuf ] && echo /dev/udmabuf || echo 'no /dev/udmabuf: scene:*, wlr:*, *-dmabuf* skipped')"
 	echo
 } > "$sum"
 
@@ -46,7 +46,7 @@ errors=0
 for c in $cases; do
 	stem=$(echo "$c" | tr ':' '_')
 	case "$c" in
-	scene:*) [ -e /dev/udmabuf ] || { printf '%-20s skipped\n' "$c" >> "$sum"; continue; } ;;
+	scene:*|wlr:*|*-dmabuf*) [ -e /dev/udmabuf ] || { printf '%-30s skipped\n' "$c" >> "$sum"; continue; } ;;
 	esac
 	rc=0
 	run "$c" "$stem" || rc=$?
@@ -59,7 +59,7 @@ for c in $cases; do
 		else res="exit $rc"; errors=$((errors + 1)); fi
 		crashed="$crashed $c" ;;
 	esac
-	printf '%-20s %s\n' "$c" "$res" >> "$sum"
+	printf '%-30s %s\n' "$c" "$res" >> "$sum"
 done
 
 # Each crashed case again: under gdb with debug symbols, threaded (the crashing rasterizer thread

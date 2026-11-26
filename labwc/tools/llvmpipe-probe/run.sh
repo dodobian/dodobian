@@ -28,7 +28,7 @@ for a in "$@"; do
 	*=*)
 		echo "${a%%=*}" | grep -qE '^[A-Z][A-Z0-9_]*$' || { echo "bad variable: $a" >&2; exit 1; }
 		envs="$envs -e $a" ;;
-	scene:*|gl:*)
+	scene:*|wlr:*|gl:*)
 		echo "$a" | grep -qE '^[a-z]+:[a-z0-9-]+$' || { echo "bad case: $a" >&2; exit 1; }
 		cases="$cases $a" ;;
 	*) echo "neither NAME=VALUE nor a case: $a" >&2; exit 1 ;;

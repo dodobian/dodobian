@@ -8,26 +8,35 @@
 // Usage: probe <case> [output.ppm]   probe --list
 //
 // Why: our Labwc with SceneFX crashes llvmpipe's rasterizer on amd64 (not on arm64; Weston on the
-// same llvmpipe is fine). Two suspects: SceneFX's shaders, and the stencil renderbuffer SceneFX
-// attaches to every framebuffer (render/fx_renderer/fx_framebuffer.c), which wlroots and Weston
-// do not have.
+// same llvmpipe is fine), right after the 10x16 cursor buffer gets its framebuffer. Suspects:
+// SceneFX's shaders; the stencil renderbuffer SceneFX attaches to every framebuffer
+// (render/fx_renderer/fx_framebuffer.c), which wlroots and Weston do not have; and the cursor
+// buffer itself: wlroots' udmabuf allocator gives it a stride of width * 4, 40 bytes, not a
+// multiple of 16.
 //   scene:*  SceneFX's scene graph on a headless wlroots output, the same path Labwc renders
 //            through (udmabuf buffers, SceneFX framebuffer with its stencil attachment).
-//   gl:*     plain EGL (surfaceless) and GLES2 without SceneFX and without dmabuf: SceneFX's base
-//            shaders (shaders.h) drawn into a renderbuffer, with and without a stencil attachment.
-//            If only "-stencil" cases crash, that is a Mesa reproducer on its own.
+//   wlr:*    the same output with wlroots' own GLES2 renderer, without SceneFX.
+//   gl:*     plain EGL (Mesa's software device, as wlroots picks it) and GLES2 without wlroots:
+//            SceneFX's base shaders (shaders.h) drawn into a renderbuffer, optionally 10x16
+//            (-small), backed by a udmabuf with a stride of width * 4 (-dmabuf), with a stencil
+//            attachment (-stencil). A crashing gl:* case is a Mesa reproducer on its own.
 // The frame is always read back (glFinish), so llvmpipe has rasterized it before the process exits.
-#define _POSIX_C_SOURCE 200809L
+#define _GNU_SOURCE
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 #include <drm_fourcc.h>
+#include <fcntl.h>
+#include <linux/udmabuf.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <unistd.h>
 #include <wayland-server-core.h>
 #include <wlr/backend.h>
 #include <wlr/backend/headless.h>
@@ -147,15 +156,16 @@ struct scene_probe {
 	struct wlr_scene_output *scene_output;
 };
 
-static void scene_setup(struct scene_probe *p) {
+// A headless output, enabled, rendered by SceneFX (fx) or by wlroots' own renderer.
+static void output_setup(struct scene_probe *p, bool fx) {
 	struct wl_display *display = wl_display_create();
 	struct wlr_backend *backend = wlr_headless_backend_create(wl_display_get_event_loop(display));
 	if (!backend) {
 		fail("no headless backend");
 	}
-	p->renderer = fx_renderer_create(backend);
+	p->renderer = fx ? fx_renderer_create(backend) : wlr_renderer_autocreate(backend);
 	if (!p->renderer) {
-		fail("no SceneFX renderer");
+		fail("no renderer");
 	}
 	struct wlr_allocator *allocator = wlr_allocator_autocreate(backend, p->renderer);
 	if (!allocator) {
@@ -176,11 +186,42 @@ static void scene_setup(struct scene_probe *p) {
 		fail("output does not enable");
 	}
 	wlr_output_state_finish(&state);
+}
+
+static void scene_setup(struct scene_probe *p) {
+	output_setup(p, true);
 	// Always render: with a single buffer on screen the scene would hand that buffer to the
 	// output as it is (direct scan-out) and nothing would be drawn.
 	setenv("WLR_SCENE_DISABLE_DIRECT_SCANOUT", "1", 1);
 	p->scene = wlr_scene_create();
 	p->scene_output = wlr_scene_output_create(p->scene, p->output);
+}
+
+// Read a buffer back through the renderer (which waits for drawing with glFinish) and write it.
+static void read_back(struct wlr_renderer *renderer, struct wlr_buffer *buffer, const char *ppm) {
+	struct wlr_texture *tex = wlr_texture_from_buffer(renderer, buffer);
+	if (!tex) {
+		fail("buffer cannot be read back");
+	}
+	uint32_t format = wlr_texture_preferred_read_format(tex);
+	bool bgr = format == DRM_FORMAT_ARGB8888 || format == DRM_FORMAT_XRGB8888;
+	if (!bgr && format != DRM_FORMAT_ABGR8888 && format != DRM_FORMAT_XBGR8888) {
+		fprintf(stderr, "probe: read format 0x%08x\n", format);
+		fail("unexpected read format");
+	}
+	int w = buffer->width, h = buffer->height;
+	uint8_t *px = malloc((size_t)w * h * 4);
+	struct wlr_texture_read_pixels_options opts = {
+		.data = px,
+		.format = format,
+		.stride = w * 4,
+	};
+	if (!px || !wlr_texture_read_pixels(tex, &opts)) {
+		fail("read back failed");
+	}
+	write_ppm(ppm, px, w, h, bgr);
+	wlr_texture_destroy(tex);
+	free(px);
 }
 
 static void scene_frame(struct scene_probe *p, const char *ppm) {
@@ -195,30 +236,9 @@ static void scene_frame(struct scene_probe *p, const char *ppm) {
 	if (state.buffer->width != W || state.buffer->height != H) {
 		fail("the frame is not the output's size: the scene did not render it");
 	}
-	struct wlr_texture *tex = wlr_texture_from_buffer(p->renderer, state.buffer);
-	if (!tex) {
-		fail("frame cannot be read back");
-	}
-	uint32_t format = wlr_texture_preferred_read_format(tex);
-	bool bgr = format == DRM_FORMAT_ARGB8888 || format == DRM_FORMAT_XRGB8888;
-	if (!bgr && format != DRM_FORMAT_ABGR8888 && format != DRM_FORMAT_XBGR8888) {
-		fprintf(stderr, "probe: read format 0x%08x\n", format);
-		fail("unexpected read format");
-	}
-	uint8_t *px = malloc((size_t)W * H * 4);
-	struct wlr_texture_read_pixels_options opts = {
-		.data = px,
-		.format = format,
-		.stride = W * 4,
-	};
-	if (!px || !wlr_texture_read_pixels(tex, &opts)) {
-		fail("frame read back failed");
-	}
-	write_ppm(ppm, px, W, H, bgr);
-	wlr_texture_destroy(tex);
+	read_back(p->renderer, state.buffer, ppm);
 	wlr_output_commit_state(p->output, &state);
 	wlr_output_state_finish(&state);
-	free(px);
 }
 
 static struct wlr_scene_buffer *add_buffer(struct scene_probe *p, int w, int h, bool alpha,
@@ -297,7 +317,83 @@ static int run_scene(const char *name, const char *ppm) {
 	return 0;
 }
 
+// --- wlr:* cases, wlroots without SceneFX
+
+static int run_wlr(const char *name, const char *ppm) {
+	if (strcmp(name, "wlr:cursor-hw")) {
+		return -1;
+	}
+	// scene:cursor-hw without SceneFX: wlroots' GLES2 renderer draws the cursor image into its
+	// 10x16 udmabuf cursor buffer (no stencil attachment); the cursor buffer is read back.
+	struct scene_probe p;
+	output_setup(&p, false);
+	struct wlr_output_cursor *c = wlr_output_cursor_create(p.output);
+	struct wlr_buffer *b = pattern_buffer(10, 16, true);
+	if (!c || !wlr_output_cursor_set_buffer(c, b, 0, 0)) {
+		fail("no cursor");
+	}
+	wlr_buffer_drop(b);
+	if (!p.output->cursor_front_buffer) {
+		fail("no hardware cursor buffer");
+	}
+	read_back(p.renderer, p.output->cursor_front_buffer, ppm);
+	return 0;
+}
+
 // --- gl:* cases, plain EGL and GLES2
+
+// A udmabuf of at least size bytes, as wlroots' udmabuf allocator makes one.
+static int udmabuf_create(size_t size) {
+	int dev = open("/dev/udmabuf", O_RDWR | O_CLOEXEC);
+	if (dev < 0) {
+		fail("no /dev/udmabuf");
+	}
+	long page = sysconf(_SC_PAGE_SIZE);
+	size = (size + page - 1) / page * page;
+	int memfd = memfd_create("probe", MFD_CLOEXEC | MFD_ALLOW_SEALING);
+	if (memfd < 0 || ftruncate(memfd, size) < 0 || fcntl(memfd, F_ADD_SEALS, F_SEAL_SHRINK) < 0) {
+		fail("no memfd for the udmabuf");
+	}
+	struct udmabuf_create create = {
+		.memfd = memfd,
+		.flags = UDMABUF_FLAGS_CLOEXEC,
+		.offset = 0,
+		.size = size,
+	};
+	int fd = ioctl(dev, UDMABUF_CREATE, &create);
+	if (fd < 0) {
+		fail("UDMABUF_CREATE failed");
+	}
+	close(memfd);
+	close(dev);
+	return fd;
+}
+
+// Mesa's software EGL device, which wlroots uses for llvmpipe (EGL_PLATFORM_DEVICE_EXT).
+static EGLDisplay software_display(void) {
+	PFNEGLQUERYDEVICESEXTPROC query_devices =
+		(PFNEGLQUERYDEVICESEXTPROC)eglGetProcAddress("eglQueryDevicesEXT");
+	PFNEGLQUERYDEVICESTRINGEXTPROC query_string =
+		(PFNEGLQUERYDEVICESTRINGEXTPROC)eglGetProcAddress("eglQueryDeviceStringEXT");
+	PFNEGLGETPLATFORMDISPLAYEXTPROC get_display =
+		(PFNEGLGETPLATFORMDISPLAYEXTPROC)eglGetProcAddress("eglGetPlatformDisplayEXT");
+	if (!query_devices || !query_string || !get_display) {
+		fail("no EGL device enumeration");
+	}
+	EGLDeviceEXT devices[16];
+	EGLint n = 0;
+	if (!query_devices(16, devices, &n)) {
+		fail("eglQueryDevicesEXT failed");
+	}
+	for (EGLint i = 0; i < n; i++) {
+		const char *exts = query_string(devices[i], EGL_EXTENSIONS);
+		if (exts && strstr(exts, "EGL_MESA_device_software")) {
+			return get_display(EGL_PLATFORM_DEVICE_EXT, devices[i], NULL);
+		}
+	}
+	fail("no software EGL device");
+	return EGL_NO_DISPLAY;
+}
 
 static GLuint compile(GLenum type, const char *src) {
 	GLuint s = glCreateShader(type);
@@ -347,18 +443,25 @@ static void draw_box(GLuint prog, int x, int y, int w, int h, int fw, int fh) {
 }
 
 static int run_gl(const char *name, const char *ppm) {
-	// gl:<kind>[-small][-stencil]: -small draws into a 10x16 target (the size of the cursor
-	// buffer Labwc crashes on) instead of 1280x720.
+	// gl:<kind>[-small][-dmabuf][-stencil]: -small draws into a 10x16 target (the size of the
+	// cursor buffer Labwc crashes on) instead of 1280x720; -dmabuf backs the colour buffer with a
+	// udmabuf of stride width * 4 (as wlroots allocates it); -stencil adds SceneFX's stencil.
 	const char *what = name + 3;
 	size_t len = strcspn(what, "-");
-	const char *flags = what + len;
-	bool small = !strncmp(flags, "-small", 6);
-	if (small) {
-		flags += 6;
-	}
-	bool stencil = !strcmp(flags, "-stencil");
-	if (*flags && !stencil) {
-		return -1;
+	bool small = false, dmabuf = false, stencil = false;
+	for (const char *f = what + len; *f;) {
+		f++; // the '-'
+		size_t n = strcspn(f, "-");
+		if (n == 5 && !strncmp(f, "small", 5) && !small && !dmabuf && !stencil) {
+			small = true;
+		} else if (n == 6 && !strncmp(f, "dmabuf", 6) && !dmabuf && !stencil) {
+			dmabuf = true;
+		} else if (n == 7 && !strncmp(f, "stencil", 7) && !stencil) {
+			stencil = true;
+		} else {
+			return -1;
+		}
+		f += n;
 	}
 	const int fw = small ? 10 : W, fh = small ? 16 : H;
 	enum { CLEAR, QUAD, TEX } kind;
@@ -372,14 +475,9 @@ static int run_gl(const char *name, const char *ppm) {
 		return -1;
 	}
 
-	PFNEGLGETPLATFORMDISPLAYEXTPROC get_display =
-		(PFNEGLGETPLATFORMDISPLAYEXTPROC)eglGetProcAddress("eglGetPlatformDisplayEXT");
-	if (!get_display) {
-		fail("no eglGetPlatformDisplayEXT");
-	}
-	EGLDisplay dpy = get_display(EGL_PLATFORM_SURFACELESS_MESA, EGL_DEFAULT_DISPLAY, NULL);
+	EGLDisplay dpy = software_display();
 	if (dpy == EGL_NO_DISPLAY || !eglInitialize(dpy, NULL, NULL) || !eglBindAPI(EGL_OPENGL_ES_API)) {
-		fail("no surfaceless EGL display");
+		fail("no software EGL display");
 	}
 	static const EGLint attribs[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
 	EGLContext ctx = eglCreateContext(dpy, EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT, attribs);
@@ -392,7 +490,36 @@ static int run_gl(const char *name, const char *ppm) {
 	GLuint fbo, color, sb;
 	glGenRenderbuffers(1, &color);
 	glBindRenderbuffer(GL_RENDERBUFFER, color);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8_OES, fw, fh);
+	if (dmabuf) {
+		// ARGB8888 with stride width * 4, as wlroots' udmabuf allocator makes the cursor buffer.
+		PFNEGLCREATEIMAGEKHRPROC create_image =
+			(PFNEGLCREATEIMAGEKHRPROC)eglGetProcAddress("eglCreateImageKHR");
+		PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC image_storage =
+			(PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC)eglGetProcAddress(
+				"glEGLImageTargetRenderbufferStorageOES");
+		if (!create_image || !image_storage) {
+			fail("no EGLImage import");
+		}
+		int fd = udmabuf_create((size_t)fw * 4 * fh);
+		const EGLint image_attribs[] = {
+			EGL_WIDTH, fw,
+			EGL_HEIGHT, fh,
+			EGL_LINUX_DRM_FOURCC_EXT, DRM_FORMAT_ARGB8888,
+			EGL_DMA_BUF_PLANE0_FD_EXT, fd,
+			EGL_DMA_BUF_PLANE0_OFFSET_EXT, 0,
+			EGL_DMA_BUF_PLANE0_PITCH_EXT, fw * 4,
+			EGL_NONE,
+		};
+		EGLImageKHR image = create_image(dpy, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, NULL,
+			image_attribs);
+		if (image == EGL_NO_IMAGE_KHR) {
+			fail("dmabuf import failed");
+		}
+		image_storage(GL_RENDERBUFFER, image);
+		printf("colour buffer: udmabuf %dx%d, stride %d\n", fw, fh, fw * 4);
+	} else {
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8_OES, fw, fh);
+	}
 	glGenFramebuffers(1, &fbo);
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, color);
@@ -467,10 +594,13 @@ static int run_gl(const char *name, const char *ppm) {
 static const char *const cases[] = {
 	"scene:empty", "scene:rect", "scene:rect-alpha", "scene:rect-round", "scene:buffer-rgba",
 	"scene:buffer-rgbx", "scene:buffer-round", "scene:shadow", "scene:blur", "scene:cursor",
-	"scene:cursor-hw",
+	"scene:cursor-hw", "wlr:cursor-hw",
 	"gl:clear", "gl:clear-stencil", "gl:quad", "gl:quad-stencil", "gl:tex", "gl:tex-stencil",
 	"gl:clear-small", "gl:clear-small-stencil", "gl:quad-small", "gl:quad-small-stencil",
 	"gl:tex-small", "gl:tex-small-stencil",
+	"gl:tex-dmabuf", "gl:tex-dmabuf-stencil",
+	"gl:clear-small-dmabuf", "gl:clear-small-dmabuf-stencil", "gl:quad-small-dmabuf",
+	"gl:quad-small-dmabuf-stencil", "gl:tex-small-dmabuf", "gl:tex-small-dmabuf-stencil",
 };
 
 int main(int argc, char *argv[]) {
@@ -489,6 +619,8 @@ int main(int argc, char *argv[]) {
 	int rc = -1;
 	if (!strncmp(argv[1], "scene:", 6)) {
 		rc = run_scene(argv[1], ppm);
+	} else if (!strncmp(argv[1], "wlr:", 4)) {
+		rc = run_wlr(argv[1], ppm);
 	} else if (!strncmp(argv[1], "gl:", 3)) {
 		rc = run_gl(argv[1], ppm);
 	}
