@@ -5,7 +5,8 @@
 # Build one of our Debian packages in a clean debian:forky container, check it, and test that it
 # installs and purges cleanly in a second clean container.
 # Usage: packages/build.sh <package>        e.g. packages/build.sh dodobian-theme
-# Output: build/<package>/ (.deb, .dsc and source tarballs, .changes, .buildinfo, lintian.txt).
+# Output: build/<package>/ (.deb, .dsc and source tarballs, .changes, .buildinfo, lintian.txt,
+#         test/ with what the package test leaves to look at).
 # Needs docker; installs nothing on the host. Any failed check fails the build.
 #
 # Two kinds of package:
@@ -113,17 +114,25 @@ echo "--- lintian"; cat "$out/lintian.txt"
 # Install, remove and purge in a clean container. Debug symbols are left out.
 # A package may bring its own test, packages/<package>/test.sh, run after install and before purge.
 # /dev/udmabuf, when the docker host has it, lets a test render with software GLES2 (llvmpipe).
+# A test may leave files for a human to look at (screenshots) in /test-out = build/<package>/test/.
 echo "--- install test"
+mkdir -p "$out/test"
 dev=
 if docker run --rm --device /dev/udmabuf "$image" true >/dev/null 2>&1; then dev="--device /dev/udmabuf"; fi
 # shellcheck disable=SC2086 # $dev is empty or one option and its argument
-docker run --rm $dev -v "$out:/out:ro" -v "$dir:/pkg:ro" "$image" sh -euc '
+docker run --rm $dev -v "$out:/out:ro" -v "$dir:/pkg:ro" -v "$out/test:/test-out" \
+  -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" "$image" sh -euc '
   export DEBIAN_FRONTEND=noninteractive
   debs=$(ls /out/*.deb | grep -v -- "-dbgsym_")
   names=$(for d in $debs; do dpkg-deb -f "$d" Package; done)
   apt-get update -qq
   apt-get install -y -qq --no-install-recommends $debs >/dev/null
-  if [ -f /pkg/test.sh ]; then echo "--- package test"; sh -eu /pkg/test.sh; fi
+  if [ -f /pkg/test.sh ]; then
+    echo "--- package test"
+    rc=0; sh -eu /pkg/test.sh || rc=$?
+    chown -R "$HOST_UID:$HOST_GID" /test-out
+    [ "$rc" = 0 ]
+  fi
   for n in $names; do dpkg-query -L "$n"; done | sort -u > /tmp/files
   apt-get remove -y -qq $names >/dev/null
   # dpkg, not apt: a package without conffiles is forgotten on remove and apt can no longer find it.

@@ -2,3 +2,4 @@
 # They live in labwc/patches/ (patches -> ../../labwc/patches).
 0001-scenefx-scene-header.patch
 0002-scenefx-renderer.patch
+0003-scenefx-rounded-corners-and-shadows.patch
