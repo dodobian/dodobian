@@ -6,7 +6,7 @@
 Run:    python3 brand/tools/theme.py          write every target of brand/palette.json
         python3 brand/tools/theme.py --check  write nothing; exit 1 if a rule is broken
 Input:  brand/palette.json (brand colours, roles, targets) and the targets' *.in templates
-Output: the targets' output files, e.g. packages/dodobian-theme/labwc/themerc (stdlib only)
+Output: the targets' output files, e.g. packages/dodo-theme/labwc/themerc (stdlib only)
 
 A template names roles, never colours:
     @@primary@@           #0E6E73

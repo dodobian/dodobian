@@ -32,7 +32,7 @@ jobs:
       matrix:
         # One line per package and architecture. Architecture "all" packages build once, on amd64.
         include:
-          - { package: dodobian-theme, arch: all, runner: ubuntu-24.04 }
+          - { package: dodo-theme, arch: all, runner: ubuntu-24.04 }
           - { package: libxfce4windowing, arch: amd64, runner: ubuntu-24.04 }
           - { package: libxfce4windowing, arch: arm64, runner: ubuntu-24.04-arm }
           - { package: labwc, arch: amd64, runner: ubuntu-24.04 }

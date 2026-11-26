@@ -1,23 +1,23 @@
-Source: dodobian-theme
+Source: dodo-theme
 Section: x11
 Priority: optional
 Maintainer: dmitrax <4255553+dmitrax@users.noreply.github.com>
 Build-Depends: debhelper-compat (= 13)
 Standards-Version: 4.7.2
 Homepage: https://github.com/dodobian/dodobian
-Vcs-Browser: https://github.com/dodobian/dodobian/tree/main/packages/dodobian-theme
+Vcs-Browser: https://github.com/dodobian/dodobian/tree/main/packages/dodo-theme
 Vcs-Git: https://github.com/dodobian/dodobian.git
 Rules-Requires-Root: no
 
-Package: dodobian-theme
+Package: dodo-theme
 Architecture: all
 Depends: ${misc:Depends}
 Recommends: labwc, waybar
-Description: Dodobian look: labwc theme, Waybar style, wallpaper and marks
- The "Mauritius" look of the Dodobian desktop: a labwc window theme named
- Dodobian (rounded title bars, soft shadows), a Waybar stylesheet, the lagoon
- wallpaper and the Dodobian marks used by the panel.
+Description: Dodo look: labwc theme, Waybar style, wallpaper and marks
+ The "Mauritius" look of the Dodo desktop: a labwc window theme named
+ Dodo (rounded title bars, soft shadows), a Waybar stylesheet, the lagoon
+ wallpaper and the Dodo marks used by the panel.
  .
  Files only: nothing is enabled for existing users. Select the theme in
- labwc's rc.xml (<theme><name>Dodobian</name>) and point Waybar at
- /usr/share/dodobian/waybar/style.css.
+ labwc's rc.xml (<theme><name>Dodo</name>) and point Waybar at
+ /usr/share/dodo/waybar/style.css.

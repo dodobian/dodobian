@@ -4,7 +4,7 @@ Sources of our Debian packages. Configs ship as `.deb`, so `apt upgrade` updates
 
 | Package | Arch | What |
 |---|---|---|
-| `dodobian-theme` | all | labwc theme "Dodobian", Waybar style, wallpaper, marks for the panel |
+| `dodo-theme` | all | labwc theme "Dodo", Waybar style, wallpaper, marks for the panel |
 | `libxfce4windowing` | any | Debian's package rebuilt with our patches: the session can name the primary monitor (`XFW_PRIMARY_MONITOR`) |
 | `labwc` | any | Debian's package rebuilt with our Labwc patches from `labwc/patches/`: renders with SceneFX (needs GLES2), the base for rounded corners and shadows |
 
@@ -13,7 +13,7 @@ Planned: `dodobian-session` (session, labwc and Waybar defaults, units), `dodobi
 ## Build
 
 ```sh
-packages/build.sh dodobian-theme
+packages/build.sh dodo-theme
 ```
 
 A directory with `debian/` is our own package. A directory with `series` is a Debian package rebuilt

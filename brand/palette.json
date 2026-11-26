@@ -34,7 +34,7 @@
     }
   },
   "targets": [
-    { "template": "packages/dodobian-theme/labwc/themerc.in",     "output": "packages/dodobian-theme/labwc/themerc",     "variant": "light", "comment": "#" },
-    { "template": "packages/dodobian-theme/waybar/style.css.in",  "output": "packages/dodobian-theme/waybar/style.css",  "variant": "light", "comment": "/* */" }
+    { "template": "packages/dodo-theme/labwc/themerc.in",     "output": "packages/dodo-theme/labwc/themerc",     "variant": "light", "comment": "#" },
+    { "template": "packages/dodo-theme/waybar/style.css.in",  "output": "packages/dodo-theme/waybar/style.css",  "variant": "light", "comment": "/* */" }
   ]
 }

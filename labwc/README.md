@@ -16,7 +16,7 @@ Upstream Labwc declined SceneFX (labwc/labwc pull request 3751), so the stack is
 outside of server-side decorations, the window content inside the border, windows with client-side
 decorations and window captures (`grim -T`). `<theme><dropShadows>` draws a SceneFX shadow behind
 every window, sized by `window.*.shadow.size` and moved by `window.*.shadow.offset.x/y`. Labwc's
-defaults are kept (radius 8, no shadows); Dodobian's look comes from its theme and session config.
+defaults are kept (radius 8, no shadows); Dodo's look comes from `dodo-theme` and the session config.
 Corners are square and shadows off for maximized and fullscreen windows; tiled windows are square
 and get shadows only with `dropShadowsOnTiled`. Clients that draw their own frame and shadow (GTK4)
 are left alone. Known limits: single-pixel buffers (some video players) stay square, the shadow

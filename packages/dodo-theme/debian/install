@@ -1,5 +1,5 @@
-labwc/themerc                      usr/share/themes/Dodobian/labwc/
-waybar/style.css                   usr/share/dodobian/waybar/
-brand/wallpaper-lagoon-dodo-mouse.png usr/share/backgrounds/dodobian/
-brand/emblem.svg                   usr/share/dodobian/brand/
-brand/dmark-swirl.svg              usr/share/dodobian/brand/
+labwc/themerc                      usr/share/themes/Dodo/labwc/
+waybar/style.css                   usr/share/dodo/waybar/
+brand/wallpaper-lagoon-dodo-mouse.png usr/share/backgrounds/dodo/
+brand/emblem.svg                   usr/share/dodo/brand/
+brand/dmark-swirl.svg              usr/share/dodo/brand/

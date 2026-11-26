@@ -1,3 +1,11 @@
+dodo-theme (0.3.0) unstable; urgency=medium
+
+  * Renamed from dodobian-theme: the desktop is Dodo, the distribution built
+    on it is Dodobian. The labwc theme is now named Dodo, and the files moved
+    to /usr/share/dodo, /usr/share/themes/Dodo and /usr/share/backgrounds/dodo.
+
+ -- dmitrax <4255553+dmitrax@users.noreply.github.com>  Thu, 26 Nov 2026 23:30:00 +0400
+
 dodobian-theme (0.2.2) unstable; urgency=medium
 
   * Lighter, tighter window shadows (active 20 px at 20%, 4 px down; inactive
