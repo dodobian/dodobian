@@ -4,7 +4,7 @@
 #
 # Start the Dodo desktop: labwc with the Dodo defaults layered under the user's config.
 #
-# Config layers, highest first (labwc --merge-config, xfconf, foot, fuzzel read them all):
+# Config layers, highest first (labwc --merge-config, xfconf, fuzzel, xdg-terminal-exec read them all):
 #   ~/.config                           the user's own: always wins
 #   $XDG_RUNTIME_DIR/dodo/xdg       generated at login from session.conf (monitor names)
 #   /usr/share/dodo/xdg             the package's defaults, updated by apt

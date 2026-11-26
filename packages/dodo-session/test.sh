@@ -58,4 +58,7 @@ jq -e 'length == 4
 	and (.[2] | has("ext/workspaces") | not)
 	and .[3].name == "deskpop" and .[3].output == "HEADLESS-2"' "$s/waybar/config.json" >/dev/null
 grep -q -- "-c $run/xdg/dodo/waybar/config.json" "$run/snap/waybar-args"
+echo "terminal"
+t=$(env -i HOME="$run/home" PATH=/usr/bin:/bin XDG_CONFIG_DIRS=/usr/share/dodo/xdg:/etc/xdg xdg-terminal-exec --print-id)
+[ "$t" = xfce4-terminal.desktop ] || { echo "default terminal is $t"; exit 1; }
 echo "session test: ok"

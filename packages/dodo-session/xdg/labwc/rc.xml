@@ -49,7 +49,7 @@
     <keybind key="W-d"><action name="ToggleShowDesktop"/></keybind>
     <keybind key="W-q"><action name="Close"/></keybind>
     <keybind key="W-Space"><action name="Execute" command="fuzzel"/></keybind>
-    <keybind key="W-Return"><action name="Execute" command="foot"/></keybind>
+    <keybind key="W-Return"><action name="Execute" command="xdg-terminal-exec"/></keybind>
     <keybind key="W-e"><action name="Execute" command="thunar"/></keybind>
     <keybind key="W-a"><action name="ShowMenu" menu="dodo-root-menu"/></keybind>
     <keybind key="W-S-s"><action name="Execute" command="/usr/libexec/dodo-session/screenshot"/></keybind>

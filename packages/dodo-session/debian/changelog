@@ -1,3 +1,10 @@
+dodo-session (0.3.0) unstable; urgency=medium
+
+  * Terminal through xdg-terminal-exec, xfce4-terminal by default: a user picks
+    another one in ~/.config/xdg-terminals.list. foot is no longer pulled in.
+
+ -- dmitrax <4255553+dmitrax@users.noreply.github.com>  Fri, 27 Nov 2026 00:20:00 +0400
+
 dodo-session (0.2.0) unstable; urgency=medium
 
   * Screenshot of an area also on Super+Shift+S and behind a camera button

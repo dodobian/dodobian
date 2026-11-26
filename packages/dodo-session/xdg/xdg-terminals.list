@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2026 The Dodobian authors
+#
+# Default terminal for xdg-terminal-exec (Super+Enter, the menu, fuzzel). To use another one,
+# put its desktop file name first in ~/.config/xdg-terminals.list, e.g. com.mitchellh.ghostty.desktop.
+xfce4-terminal.desktop

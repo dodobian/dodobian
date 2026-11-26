@@ -8,7 +8,7 @@ libexec/waybar                          usr/libexec/dodo-session/
 xdg/labwc/rc.xml                        usr/share/dodo/xdg/labwc/
 xdg/labwc/menu.xml                      usr/share/dodo/xdg/labwc/
 xdg/labwc/environment                   usr/share/dodo/xdg/labwc/
-xdg/foot/foot.ini                       usr/share/dodo/xdg/foot/
+xdg/xdg-terminals.list                  usr/share/dodo/xdg/
 xdg/fuzzel/fuzzel.ini                   usr/share/dodo/xdg/fuzzel/
 waybar/config.json                      usr/share/dodo/waybar/
 waybar/places.xml                       usr/share/dodo/waybar/
