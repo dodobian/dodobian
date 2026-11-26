@@ -1,0 +1,10 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2026 The Dodobian authors
+#
+# Screenshot of an area chosen with the mouse, opened in swappy to mark up, save or copy.
+# Bound to Super+Shift+S and Print, and behind the panel's camera button. One place to change
+# when Dodo has a screenshot tool of its own.
+set -u
+area=$(slurp) || exit 0
+grim -g "$area" - | swappy -f -

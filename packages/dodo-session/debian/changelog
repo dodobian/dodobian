@@ -1,3 +1,10 @@
+dodo-session (0.2.0) unstable; urgency=medium
+
+  * Screenshot of an area also on Super+Shift+S and behind a camera button
+    on the top panel, for keyboards without a Print key.
+
+ -- dmitrax <4255553+dmitrax@users.noreply.github.com>  Thu, 26 Nov 2026 23:50:00 +0400
+
 dodo-session (0.1.0) unstable; urgency=medium
 
   * Initial release: dodo-session login session with labwc, Waybar and

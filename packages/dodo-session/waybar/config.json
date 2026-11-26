@@ -10,6 +10,7 @@
    "custom/system"
   ],
   "modules-right": [
+   "custom/screenshot",
    "tray",
    "pulseaudio",
    "clock"
@@ -58,6 +59,11 @@
   "clock": {
    "format": "{:%d.%m  %H:%M}",
    "tooltip-format": "<tt>{calendar}</tt>"
+  },
+  "custom/screenshot": {
+   "format": "",
+   "tooltip-format": "Screenshot (Super+Shift+S)",
+   "on-click": "/usr/libexec/dodo-session/screenshot"
   }
  },
  {

@@ -2,6 +2,7 @@ bin/dodo-session                    usr/bin/
 share/common.sh                         usr/share/dodo-session/
 libexec/gen-labwc                       usr/libexec/dodo-session/
 libexec/power                           usr/libexec/dodo-session/
+libexec/screenshot                      usr/libexec/dodo-session/
 libexec/startup                         usr/libexec/dodo-session/
 libexec/waybar                          usr/libexec/dodo-session/
 xdg/labwc/rc.xml                        usr/share/dodo/xdg/labwc/
