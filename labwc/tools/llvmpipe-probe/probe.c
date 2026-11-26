@@ -50,16 +50,17 @@ static void fail(const char *what) {
 	exit(2);
 }
 
-// Write the frame as PPM. bgr: bytes in memory are B, G, R, X (DRM ARGB/XRGB8888 on little endian).
-static void write_ppm(const char *path, const uint8_t *px, bool bgr) {
+// Write the w x h frame as PPM. bgr: bytes in memory are B, G, R, X (DRM ARGB/XRGB8888 on little
+// endian).
+static void write_ppm(const char *path, const uint8_t *px, int w, int h, bool bgr) {
 	unsigned long lit = 0;
-	for (int i = 0; i < W * H; i++) {
+	for (int i = 0; i < w * h; i++) {
 		const uint8_t *p = px + i * 4;
 		if (p[0] || p[1] || p[2]) {
 			lit++;
 		}
 	}
-	printf("frame read back: %lu of %d pixels not black\n", lit, W * H);
+	printf("frame read back: %lu of %d pixels not black\n", lit, w * h);
 	if (!path) {
 		return;
 	}
@@ -67,8 +68,8 @@ static void write_ppm(const char *path, const uint8_t *px, bool bgr) {
 	if (!f) {
 		fail("cannot write the frame");
 	}
-	fprintf(f, "P6\n%d %d\n255\n", W, H);
-	for (int i = 0; i < W * H; i++) {
+	fprintf(f, "P6\n%d %d\n255\n", w, h);
+	for (int i = 0; i < w * h; i++) {
 		const uint8_t *p = px + i * 4;
 		uint8_t rgb[3] = { bgr ? p[2] : p[0], p[1], bgr ? p[0] : p[2] };
 		fwrite(rgb, 1, 3, f);
@@ -213,7 +214,7 @@ static void scene_frame(struct scene_probe *p, const char *ppm) {
 	if (!px || !wlr_texture_read_pixels(tex, &opts)) {
 		fail("frame read back failed");
 	}
-	write_ppm(ppm, px, bgr);
+	write_ppm(ppm, px, W, H, bgr);
 	wlr_texture_destroy(tex);
 	wlr_output_commit_state(p->output, &state);
 	wlr_output_state_finish(&state);
@@ -277,6 +278,18 @@ static int run_scene(const char *name, const char *ppm) {
 		}
 		wlr_buffer_drop(b);
 		wlr_output_cursor_move(c, 100, 100);
+	} else if (!strcmp(name, "scene:cursor-hw")) {
+		// The cursor as Labwc gets it on the headless backend: a "hardware" cursor. wlroots draws
+		// the image into a cursor buffer of its own, 10x16 from udmabuf, which SceneFX gives a
+		// framebuffer with its stencil attachment; Labwc's crash on amd64 comes right after
+		// "Created GL FBO for buffer 10x16". The frame itself stays black.
+		struct wlr_output_cursor *c = wlr_output_cursor_create(p.output);
+		struct wlr_buffer *b = pattern_buffer(10, 16, true);
+		if (!c || !wlr_output_cursor_set_buffer(c, b, 0, 0)) {
+			fail("no cursor");
+		}
+		wlr_buffer_drop(b);
+		wlr_output_cursor_move(c, 100, 100);
 	} else {
 		return -1;
 	}
@@ -314,12 +327,12 @@ static GLuint program(const char *frag) {
 	return p;
 }
 
-// Draw the unit square at box (x, y, w, h) in pixels, as SceneFX does: the vertex shader computes
-// pos3 * proj, so the row-major matrix is uploaded untransposed.
-static void draw_box(GLuint prog, int x, int y, int w, int h) {
+// Draw the unit square at box (x, y, w, h) in pixels of an fw x fh target, as SceneFX does: the
+// vertex shader computes pos3 * proj, so the row-major matrix is uploaded untransposed.
+static void draw_box(GLuint prog, int x, int y, int w, int h, int fw, int fh) {
 	float proj[9] = {
-		2.0f * w / W, 0, 2.0f * x / W - 1,
-		0, 2.0f * h / H, 2.0f * y / H - 1,
+		2.0f * w / fw, 0, 2.0f * x / fw - 1,
+		0, 2.0f * h / fh, 2.0f * y / fh - 1,
 		0, 0, 1,
 	};
 	static const float ident[9] = { 1, 0, 0, 0, 1, 0, 0, 0, 1 };
@@ -334,9 +347,20 @@ static void draw_box(GLuint prog, int x, int y, int w, int h) {
 }
 
 static int run_gl(const char *name, const char *ppm) {
+	// gl:<kind>[-small][-stencil]: -small draws into a 10x16 target (the size of the cursor
+	// buffer Labwc crashes on) instead of 1280x720.
 	const char *what = name + 3;
-	bool stencil = strstr(what, "-stencil") != NULL;
 	size_t len = strcspn(what, "-");
+	const char *flags = what + len;
+	bool small = !strncmp(flags, "-small", 6);
+	if (small) {
+		flags += 6;
+	}
+	bool stencil = !strcmp(flags, "-stencil");
+	if (*flags && !stencil) {
+		return -1;
+	}
+	const int fw = small ? 10 : W, fh = small ? 16 : H;
 	enum { CLEAR, QUAD, TEX } kind;
 	if (!strncmp(what, "clear", len) && len == 5) {
 		kind = CLEAR;
@@ -345,9 +369,6 @@ static int run_gl(const char *name, const char *ppm) {
 	} else if (!strncmp(what, "tex", len) && len == 3) {
 		kind = TEX;
 	} else {
-		return -1;
-	}
-	if (what[len] && strcmp(what + len, "-stencil")) {
 		return -1;
 	}
 
@@ -371,20 +392,20 @@ static int run_gl(const char *name, const char *ppm) {
 	GLuint fbo, color, sb;
 	glGenRenderbuffers(1, &color);
 	glBindRenderbuffer(GL_RENDERBUFFER, color);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8_OES, W, H);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8_OES, fw, fh);
 	glGenFramebuffers(1, &fbo);
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, color);
 	if (stencil) {
 		glGenRenderbuffers(1, &sb);
 		glBindRenderbuffer(GL_RENDERBUFFER, sb);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_STENCIL_INDEX8, W, H);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_STENCIL_INDEX8, fw, fh);
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, sb);
 	}
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
 		fail("framebuffer incomplete");
 	}
-	glViewport(0, 0, W, H);
+	glViewport(0, 0, fw, fh);
 	glClearColor(0, 0, 0, 1);
 	glClear(GL_COLOR_BUFFER_BIT);
 
@@ -397,7 +418,11 @@ static int run_gl(const char *name, const char *ppm) {
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 		glUniform4f(glGetUniformLocation(prog, "color"), 0.1f, 0.3f, 0.4f, 0.5f);
-		draw_box(prog, 100, 100, 400, 300);
+		if (small) {
+			draw_box(prog, 0, 0, fw, fh, fw, fh);
+		} else {
+			draw_box(prog, 100, 100, 400, 300, fw, fh);
+		}
 	} else if (kind == TEX) {
 		// A 10x16 ARGB8888 image uploaded as BGRA and blended, as SceneFX draws a cursor.
 		snprintf(frag, sizeof(frag), tex_frag_src, 1, 0);
@@ -421,20 +446,20 @@ static int run_gl(const char *name, const char *ppm) {
 		glUniform1f(glGetUniformLocation(prog, "alpha"), 1.0f);
 		// SceneFX sets this bool uniform with glUniform1f.
 		glUniform1f(glGetUniformLocation(prog, "discard_transparent"), 0.0f);
-		draw_box(prog, 100, 100, 10, 16);
+		draw_box(prog, small ? 0 : 100, small ? 0 : 100, 10, 16, fw, fh);
 		wlr_buffer_drop(b);
 	}
 
-	uint8_t *px = malloc((size_t)W * H * 4);
+	uint8_t *px = malloc((size_t)fw * fh * 4);
 	if (!px) {
 		fail("out of memory");
 	}
 	glFinish();
-	glReadPixels(0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, px);
+	glReadPixels(0, 0, fw, fh, GL_RGBA, GL_UNSIGNED_BYTE, px);
 	if (glGetError() != GL_NO_ERROR) {
 		fail("GL error");
 	}
-	write_ppm(ppm, px, false);
+	write_ppm(ppm, px, fw, fh, false);
 	free(px);
 	return 0;
 }
@@ -442,7 +467,10 @@ static int run_gl(const char *name, const char *ppm) {
 static const char *const cases[] = {
 	"scene:empty", "scene:rect", "scene:rect-alpha", "scene:rect-round", "scene:buffer-rgba",
 	"scene:buffer-rgbx", "scene:buffer-round", "scene:shadow", "scene:blur", "scene:cursor",
+	"scene:cursor-hw",
 	"gl:clear", "gl:clear-stencil", "gl:quad", "gl:quad-stencil", "gl:tex", "gl:tex-stencil",
+	"gl:clear-small", "gl:clear-small-stencil", "gl:quad-small", "gl:quad-small-stencil",
+	"gl:tex-small", "gl:tex-small-stencil",
 };
 
 int main(int argc, char *argv[]) {
@@ -456,7 +484,7 @@ int main(int argc, char *argv[]) {
 		fprintf(stderr, "usage: probe <case> [output.ppm] | probe --list\n");
 		return 2;
 	}
-	wlr_log_init(WLR_INFO, NULL);
+	wlr_log_init(WLR_DEBUG, NULL); // as labwc -d, to compare with Labwc's log
 	const char *ppm = argc == 3 ? argv[2] : NULL;
 	int rc = -1;
 	if (!strncmp(argv[1], "scene:", 6)) {
