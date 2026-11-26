@@ -1,0 +1,55 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2026 The Dodobian authors
+#
+# Run by labwc once it is up (labwc -s): the outputs exist now. Writes the per-output wallpaper
+# defaults for xfdesktop, hands the session environment to D-Bus and systemd, and starts
+# dodo-session.target (panel, desktop, kanshi, XDG autostart).
+set -u
+. /usr/share/dodo-session/common.sh
+
+rt=$(runtime_dir) || exit 1
+wall=/usr/share/backgrounds/dodo/wallpaper-lagoon-dodo-mouse.png
+
+# xfdesktop keeps its wallpaper per output name and desktop; the package can't know the names,
+# so the defaults are written here for the outputs present at login. A user's own choice
+# (~/.config/xfce4/xfconf) wins per property.
+outputs=$(wlr-randr --json 2>/dev/null | jq -r '.[] | select(.enabled) | .name' 2>/dev/null)
+x="$rt/xdg/xfce4/xfconf/xfce-perchannel-xml"
+mkdir -p "$x"
+{
+	printf '<?xml version="1.0" encoding="UTF-8"?>\n'
+	printf '<!-- Generated at login by dodo-session for the outputs present. Do not edit. -->\n'
+	printf '<channel name="xfce4-desktop" version="1.0">\n'
+	printf '  <property name="desktop-icons" type="empty">\n'
+	printf '    <property name="primary" type="bool" value="true"/>\n'
+	printf '  </property>\n'
+	printf '  <property name="backdrop" type="empty">\n    <property name="screen0" type="empty">\n'
+	for o in $outputs; do
+		valid_outputs "$o" || continue
+		printf '      <property name="monitor%s" type="empty">\n' "$o"
+		for n in 0 1 2 3; do
+			printf '        <property name="workspace%s" type="empty">\n' "$n"
+			printf '          <property name="last-image" type="string" value="%s"/>\n' "$wall"
+			printf '          <property name="image-style" type="int" value="5"/>\n'
+			printf '          <property name="color-style" type="int" value="0"/>\n'
+			printf '        </property>\n'
+		done
+		printf '      </property>\n'
+	done
+	printf '    </property>\n  </property>\n</channel>\n'
+} > "$x/xfce4-desktop.xml"
+
+# D-Bus-activated services (xfconfd, portals) and systemd user units get the session's environment.
+vars=
+for v in WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE XDG_CONFIG_DIRS XCURSOR_THEME \
+	XCURSOR_SIZE QT_QPA_PLATFORM ELECTRON_OZONE_PLATFORM_HINT XKB_DEFAULT_LAYOUT \
+	XKB_DEFAULT_VARIANT XKB_DEFAULT_OPTIONS XKB_DEFAULT_MODEL DODO_SESSION DODO_PINNED \
+	XFW_PRIMARY_MONITOR; do
+	eval "set=\${$v+x}"
+	[ "$set" = x ] && vars="$vars $v"
+done
+# shellcheck disable=SC2086 # a list of variable names
+dbus-update-activation-environment --systemd $vars || say "could not export the environment"
+say "outputs: $(echo $outputs); pinned=${DODO_PINNED:-none}; primary=${XFW_PRIMARY_MONITOR:-auto}"
+systemctl --user start dodo-session.target || say "dodo-session.target failed to start"

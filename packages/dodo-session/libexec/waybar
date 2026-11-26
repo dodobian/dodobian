@@ -1,0 +1,41 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2026 The Dodobian authors
+#
+# Waybar for waybar.service (drop-in dodo.conf). Outside the Dodo session, or when the user
+# has a Waybar config of their own, this is plain waybar. Otherwise it starts Waybar with the
+# Dodo panel. With a pinned output (session.conf) the panel is split per output: the pinned
+# one has no desktop buttons, and every other output gets a desktop-switch indicator in its centre.
+set -u
+. /usr/share/dodo-session/common.sh
+
+own=${XDG_CONFIG_HOME:-$HOME/.config}/waybar
+if [ -z "${DODO_SESSION:-}" ] || [ -e "$own/config" ] || [ -e "$own/config.jsonc" ]; then
+	exec waybar "$@"
+fi
+
+base=$DODO_DEFAULTS/waybar/config.json
+style=$DODO_DEFAULTS/waybar/style.css
+P=${DODO_PINNED:-}
+if [ -z "$P" ]; then
+	exec waybar -c "$base" -s "$style" "$@"
+fi
+
+rt=$(runtime_dir) || exec waybar -c "$base" -s "$style" "$@"
+mkdir -p "$rt/waybar"
+# Logical size of every enabled output other than the pinned one (a rotated output swaps width and height).
+others=$(wlr-randr --json | jq -c --arg p "$P" '[.[] | select(.enabled and .name != $p)
+	| (.modes[] | select(.current)) as $m
+	| {name, h: ((if (.transform | test("90|270")) then $m.width else $m.height end) / .scale | floor)}]')
+# The indicator is 112 px high under a 28 px top bar: centred on the output.
+jq --arg p "$P" --argjson others "${others:-[]}" '
+	.[0] as $top | .[1] as $bottom
+	| [$top,
+	   ($bottom + {output: ("!" + $p)}),
+	   ($bottom | del(.["ext/workspaces"]) + {output: $p, "modules-right": []})]
+	+ [$others[] | {name: "deskpop", output: .name, layer: "overlay", position: "top",
+		exclusive: false, passthrough: true, height: 112, "margin-top": ((.h / 2 | floor) - 84),
+		"modules-center": ["ext/workspaces#deskpop"],
+		"ext/workspaces#deskpop": {format: "{name}", "sort-by-id": true}}]
+' "$base" > "$rt/waybar/config.json" || exec waybar -c "$base" -s "$style" "$@"
+exec waybar -c "$rt/waybar/config.json" -s "$style" "$@"

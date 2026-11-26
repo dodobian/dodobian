@@ -1,0 +1,98 @@
+[
+ {
+  "name": "top",
+  "layer": "top",
+  "position": "top",
+  "height": 28,
+  "modules-left": [
+   "custom/apps",
+   "custom/places",
+   "custom/system"
+  ],
+  "modules-right": [
+   "tray",
+   "pulseaudio",
+   "clock"
+  ],
+  "custom/apps": {
+   "format": "Applications",
+   "tooltip": false,
+   "on-click": "fuzzel"
+  },
+  "custom/places": {
+   "format": "Places",
+   "tooltip": false,
+   "menu": "on-click",
+   "menu-file": "/usr/share/dodo/waybar/places.xml",
+   "menu-actions": {
+    "home": "thunar",
+    "docs": "sh -c 'thunar \"$(xdg-user-dir DOCUMENTS)\"'",
+    "down": "sh -c 'thunar \"$(xdg-user-dir DOWNLOAD)\"'",
+    "trash": "thunar trash:///",
+    "fs": "thunar /"
+   }
+  },
+  "custom/system": {
+   "format": "System",
+   "tooltip": false,
+   "menu": "on-click",
+   "menu-file": "/usr/share/dodo/waybar/system.xml",
+   "menu-actions": {
+    "displays": "wdisplays",
+    "sound": "pavucontrol",
+    "net": "nm-connection-editor",
+    "logout": "/usr/libexec/dodo-session/power logout",
+    "reboot": "/usr/libexec/dodo-session/power reboot",
+    "off": "/usr/libexec/dodo-session/power poweroff"
+   }
+  },
+  "tray": {
+   "icon-size": 16,
+   "spacing": 8
+  },
+  "pulseaudio": {
+   "format": " {volume}%",
+   "format-muted": "",
+   "on-click": "pavucontrol"
+  },
+  "clock": {
+   "format": "{:%d.%m  %H:%M}",
+   "tooltip-format": "<tt>{calendar}</tt>"
+  }
+ },
+ {
+  "name": "bottom",
+  "layer": "top",
+  "position": "bottom",
+  "height": 30,
+  "modules-left": [
+   "custom/desktop",
+   "wlr/taskbar"
+  ],
+  "modules-right": [
+   "ext/workspaces"
+  ],
+  "custom/desktop": {
+   "format": "",
+   "tooltip-format": "Show desktop",
+   "on-click": "wtype -M logo -k d -m logo"
+  },
+  "wlr/taskbar": {
+   "all-outputs": false,
+   "format": "{icon} {title:.12}",
+   "icon-size": 16,
+   "icon-theme": "Papirus-Light",
+   "tooltip-format": "{title}",
+   "on-click": "minimize-raise",
+   "on-click-middle": "close",
+   "on-click-right": "maximize"
+  },
+  "ext/workspaces": {
+   "format": "{name}",
+   "sort-by-id": true,
+   "on-click": "activate",
+   "on-scroll-up": "wtype -M logo -k Left -m logo",
+   "on-scroll-down": "wtype -M logo -k Right -m logo"
+  }
+ }
+]

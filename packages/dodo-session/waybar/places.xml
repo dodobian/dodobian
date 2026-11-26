@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: GPL-2.0-or-later
+     Copyright (C) 2026 The Dodobian authors -->
+<interface>
+  <object class="GtkMenu" id="menu">
+    <child><object class="GtkMenuItem" id="home"><property name="label">Home</property></object></child>
+    <child><object class="GtkMenuItem" id="docs"><property name="label">Documents</property></object></child>
+    <child><object class="GtkMenuItem" id="down"><property name="label">Downloads</property></object></child>
+    <child><object class="GtkMenuItem" id="trash"><property name="label">Trash</property></object></child>
+    <child><object class="GtkMenuItem" id="fs"><property name="label">Computer</property></object></child>
+  </object>
+</interface>

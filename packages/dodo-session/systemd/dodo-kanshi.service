@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2026 The Dodobian authors
+# Output layouts per set of monitors, when the user has written them (~/.config/kanshi/config).
+[Unit]
+Description=Dodo output layouts (kanshi)
+PartOf=graphical-session.target
+After=graphical-session.target
+ConditionPathExists=%h/.config/kanshi/config
+
+[Service]
+ExecStart=/usr/bin/kanshi
+Restart=on-failure

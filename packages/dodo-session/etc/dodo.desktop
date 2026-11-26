@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Dodo
+Comment=Classic desktop: labwc, Waybar and xfdesktop
+Exec=/usr/bin/dodo-session
+Type=Application
+DesktopNames=labwc;wlroots

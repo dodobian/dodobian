@@ -1,0 +1,61 @@
+Source: dodo-session
+Section: x11
+Priority: optional
+Maintainer: dmitrax <4255553+dmitrax@users.noreply.github.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.7.2
+Homepage: https://github.com/dodobian/dodobian
+Vcs-Browser: https://github.com/dodobian/dodobian/tree/main/packages/dodo-session
+Vcs-Git: https://github.com/dodobian/dodobian.git
+Rules-Requires-Root: no
+
+Package: dodo-session
+Architecture: all
+Depends: ${misc:Depends},
+ dbus-bin,
+ dodo-theme,
+ fonts-font-awesome,
+ fonts-jetbrains-mono,
+ fonts-noto-core,
+ foot,
+ fuzzel,
+ grim,
+ jq,
+ labwc,
+ labwc-menu-generator,
+ libxfce4windowing-0-0,
+ papirus-icon-theme,
+ slurp,
+ swappy,
+ thunar,
+ waybar,
+ wl-clipboard,
+ wlr-randr,
+ wtype,
+ xdg-user-dirs,
+ xfdesktop4,
+Recommends: gvfs,
+ kanshi,
+ lxpolkit,
+ mako-notifier,
+ network-manager-applet,
+ nm-connection-editor,
+ pavucontrol,
+ wdisplays,
+ xdg-desktop-portal-gtk,
+ xdg-desktop-portal-wlr,
+ xwayland,
+Description: Dodo desktop session: labwc, Waybar and xfdesktop defaults
+ The Dodo desktop as a login session: labwc with the Dodo theme,
+ key and mouse bindings and an English menu, a two-bar Waybar panel,
+ desktop icons and wallpaper from xfdesktop, and systemd user units that
+ start and stop them with the session.
+ .
+ Defaults live in /usr/share/dodo/xdg and are found through
+ XDG_CONFIG_DIRS, so apt upgrades them and a user's own ~/.config always
+ wins. Per-machine settings (primary monitor, a monitor pinned to every
+ desktop) go in /etc/dodo/session.conf; the package names no monitor.
+ .
+ Rounded corners and shadows need the Dodobian build of labwc, and icons on
+ the primary monitor the Dodobian build of libxfce4windowing; with Debian's
+ builds the session still works and says so in its log.

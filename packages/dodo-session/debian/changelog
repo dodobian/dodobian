@@ -1,0 +1,7 @@
+dodo-session (0.1.0) unstable; urgency=medium
+
+  * Initial release: dodo-session login session with labwc, Waybar and
+    xfdesktop defaults found through XDG_CONFIG_DIRS, per-machine
+    session.conf (primary and pinned monitor), systemd user units.
+
+ -- dmitrax <4255553+dmitrax@users.noreply.github.com>  Thu, 26 Nov 2026 23:00:00 +0400

@@ -1,0 +1,114 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2026 The Dodobian authors
+#
+# Start the Dodo desktop: labwc with the Dodo defaults layered under the user's config.
+#
+# Config layers, highest first (labwc --merge-config, xfconf, foot, fuzzel read them all):
+#   ~/.config                           the user's own: always wins
+#   $XDG_RUNTIME_DIR/dodo/xdg       generated at login from session.conf (monitor names)
+#   /usr/share/dodo/xdg             the package's defaults, updated by apt
+#   /etc/xdg                            the system's
+# Per-machine settings: /etc/dodo/session.conf, then ~/.config/dodo/session.conf.
+# Log: ~/.local/state/dodo-session.log.
+set -u
+. /usr/share/dodo-session/common.sh
+
+state=${XDG_STATE_HOME:-$HOME/.local/state}
+mkdir -p "$state"
+exec 2>>"$state/dodo-session.log"
+say "start"
+
+rt=$(runtime_dir) || exit 1
+rm -rf "$rt"
+mkdir -p "$rt/xdg"
+export XDG_CONFIG_DIRS="$rt/xdg:$DODO_DEFAULTS/xdg:${XDG_CONFIG_DIRS:-/etc/xdg}"
+export DODO_SESSION=1
+
+# session.conf: primary= (desktop icons, one name or a comma-separated list),
+# pinned= (an output whose windows show on every desktop).
+primary=$(conf_get primary)
+pinned=$(conf_get pinned)
+if [ -n "$primary" ]; then
+	if valid_outputs "$primary"; then
+		export XFW_PRIMARY_MONITOR="$primary"
+	else
+		say "ignoring primary=$primary: not an output name"
+	fi
+fi
+case $pinned in
+*,*) say "ignoring pinned=$pinned: one output only"; pinned= ;;
+esac
+if [ -n "$pinned" ] && ! valid_outputs "$pinned"; then
+	say "ignoring pinned=$pinned: not an output name"
+	pinned=
+fi
+export DODO_PINNED="$pinned"
+
+# Keyboard layout from the machine's /etc/default/keyboard (set by the installer), unless the user
+# set XKB_DEFAULT_* already; labwc's environment files are read later and win over both.
+if [ -z "${XKB_DEFAULT_LAYOUT:-}" ] && [ -r /etc/default/keyboard ]; then
+	kb=$(
+		XKBMODEL= XKBLAYOUT= XKBVARIANT= XKBOPTIONS=
+		. /etc/default/keyboard
+		printf '%s\n%s\n%s\n%s\n' "$XKBMODEL" "$XKBLAYOUT" "$XKBVARIANT" "$XKBOPTIONS"
+	)
+	{
+		read -r m; read -r l; read -r v; read -r o
+	} <<EOF
+$kb
+EOF
+	[ -n "$m" ] && export XKB_DEFAULT_MODEL="$m"
+	[ -n "$l" ] && export XKB_DEFAULT_LAYOUT="$l"
+	[ -n "$v" ] && export XKB_DEFAULT_VARIANT="$v"
+	[ -n "$o" ] && export XKB_DEFAULT_OPTIONS="$o"
+fi
+
+# A newer Debian revision replaces our rebuilds silently on upgrade: say so instead of failing quietly.
+for p in labwc libxfce4windowing-0-0; do
+	v=$(dpkg-query -W -f='${Version}' "$p" 2>/dev/null) || continue
+	case $v in
+	*dodobian*) ;;
+	*)
+		case $p in
+		labwc) what="no rounded corners or shadows" ;;
+		*) what="desktop icons ignore primary=" ;;
+		esac
+		say "warning: $p $v is not a Dodobian build: $what"
+		;;
+	esac
+done
+
+"$DODO_LIB/gen-labwc" "$rt/xdg/labwc" "$pinned" || say "gen-labwc failed: no pinned layer"
+
+# systemd --user outlives the compositor: clean before and after, or a re-login
+# (or a compositor crash) leaves the session units failed.
+clean() {
+	systemctl --user stop dodo-session.target graphical-session.target \
+		graphical-session-pre.target 2>/dev/null
+	systemctl --user stop xdg-desktop-portal.service xdg-desktop-portal-gtk.service \
+		xdg-desktop-portal-wlr.service 2>/dev/null
+	systemctl --user unset-environment WAYLAND_DISPLAY DODO_SESSION DODO_PINNED \
+		XFW_PRIMARY_MONITOR XDG_CONFIG_DIRS 2>/dev/null
+	systemctl --user reset-failed 2>/dev/null
+}
+clean
+
+run_labwc() {
+	labwc --merge-config -s "$DODO_LIB/startup"
+}
+t0=$(date +%s)
+run_labwc
+rc=$?
+# Our labwc renders with SceneFX, which needs GLES2. Without a GPU driver it exits at once:
+# try once more on the software renderer (llvmpipe).
+if [ "$rc" != 0 ] && [ $(($(date +%s) - t0)) -lt 5 ] && [ -z "${WLR_RENDERER_FORCE_SOFTWARE:-}" ]; then
+	say "labwc exited with $rc at start: retrying with software rendering"
+	export WLR_RENDERER_FORCE_SOFTWARE=1
+	run_labwc
+	rc=$?
+fi
+say "labwc exited with $rc"
+clean
+rm -rf "$rt"
+exit "$rc"

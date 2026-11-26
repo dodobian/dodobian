@@ -1,7 +1,8 @@
 # Dodobian
 
-A classic desktop, grown on Debian. GNOME 2 in spirit, mouse first, floating windows,
-with the calm polish of a modern desktop: rounded windows, soft shadows, a little motion.
+A Debian-based system built around **Dodo**, a classic desktop: GNOME 2 in spirit, mouse first,
+floating windows, with the calm polish of a modern desktop: rounded windows, soft shadows, a little
+motion.
 
 Built on Debian (Forky now, Stable once Forky is released) with Labwc, Waybar and our own
 packages on top. The mascot is the dodo, a bird that lived only on Mauritius.
@@ -15,7 +16,7 @@ packages on top. The mascot is the dodo, a bird that lived only on Mauritius.
 |---|---|
 | `brand/` | logo, palette "Mauritius", wallpapers, generators |
 | `labwc/` | our patches for Labwc (scenefx: rounded corners, shadows; later animations) |
-| `packages/` | our Debian packages: session, theme, panel and menu configs |
+| `packages/` | our Debian packages: the Dodo desktop (`dodo-*`) and the distribution (`dodobian-*`) |
 | `site/` | dodobian.org |
 | `docs/` | how to build and install, design decisions |
 

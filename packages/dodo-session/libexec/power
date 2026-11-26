@@ -1,0 +1,11 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2026 The Dodobian authors
+#
+# power logout|reboot|poweroff: the panel's System menu.
+case ${1:-} in
+logout) exec labwc --exit ;;
+reboot) exec systemctl reboot ;;
+poweroff) exec systemctl poweroff ;;
+*) echo "usage: ${0##*/} logout|reboot|poweroff" >&2; exit 2 ;;
+esac

@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2026 The Dodobian authors
+#
+# Dodo session environment, read by labwc (all layers, the user's ~/.config/labwc/environment
+# last and winning). Language and keyboard layouts are the machine's, not set here.
+QT_QPA_PLATFORM=wayland;xcb
+ELECTRON_OZONE_PLATFORM_HINT=auto
+XCURSOR_THEME=Adwaita
+XCURSOR_SIZE=24

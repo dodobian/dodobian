@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: GPL-2.0-or-later
+     Copyright (C) 2026 The Dodobian authors -->
+<interface>
+  <object class="GtkMenu" id="menu">
+    <child><object class="GtkMenuItem" id="displays"><property name="label">Displays</property></object></child>
+    <child><object class="GtkMenuItem" id="sound"><property name="label">Sound</property></object></child>
+    <child><object class="GtkMenuItem" id="net"><property name="label">Network</property></object></child>
+    <child><object class="GtkMenuItem" id="logout"><property name="label">Log out</property></object></child>
+    <child><object class="GtkMenuItem" id="reboot"><property name="label">Restart</property></object></child>
+    <child><object class="GtkMenuItem" id="off"><property name="label">Shut down</property></object></child>
+  </object>
+</interface>
