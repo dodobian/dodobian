@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2026 The Dodobian authors
+#
+# A debugging tool, started by hand: which drawing operation of SceneFX crashes Mesa llvmpipe on
+# amd64 (our Labwc crashes it on the first frame; arm64 draws). Runs labwc/tools/llvmpipe-probe/
+# case by case; the summary of the run lists every case as ok or crashed, and the artifact holds
+# the frames, the backtraces with Mesa debug symbols and the LLVM IR of a crashed case.
+# A crashed case does not fail the job: only a probe that does not build or set up does.
+name: llvmpipe-probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      arch:
+        description: Architecture
+        type: choice
+        options: [both, amd64, arm64]
+        default: both
+      cases:
+        description: Cases, separated by spaces (empty for all; see probe --list)
+        type: string
+        default: ""
+      env:
+        description: Environment for llvmpipe, NAME=VALUE separated by spaces (e.g. LP_NATIVE_VECTOR_WIDTH=128)
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: llvmpipe-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: probe (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.arch == 'amd64' && '[{"arch":"amd64","runner":"ubuntu-24.04"}]' || inputs.arch == 'arm64' && '[{"arch":"arm64","runner":"ubuntu-24.04-arm"}]' || '[{"arch":"amd64","runner":"ubuntu-24.04"},{"arch":"arm64","runner":"ubuntu-24.04-arm"}]') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run the probe
+        env:
+          PROBE_ENV: ${{ inputs.env }}
+          PROBE_CASES: ${{ inputs.cases }}
+        # Word splitting is wanted: run.sh takes NAME=VALUE and case arguments and checks each one.
+        run: labwc/tools/llvmpipe-probe/run.sh $PROBE_ENV $PROBE_CASES
+      - name: Summary
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo "### llvmpipe probe (${{ matrix.arch }})"
+            echo '```'
+            cat build/llvmpipe-probe/summary.txt 2>/dev/null || echo "no summary: the probe did not run"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: llvmpipe-probe-${{ matrix.arch }}
+          path: build/llvmpipe-probe/
+          retention-days: 14
