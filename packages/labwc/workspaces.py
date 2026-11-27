@@ -5,6 +5,9 @@
 #   workspaces.py              print one line per workspace group, sorted:
 #                              "OUTPUT[,OUTPUT]: 1 *2 3" (* marks the active workspace)
 #   workspaces.py OUTPUT NAME  activate workspace NAME of the group on OUTPUT
+#   workspaces.py OUTPUT NAME remove
+#                              remove workspace NAME of the group on OUTPUT
+#   workspaces.py OUTPUT +     add a workspace to the group on OUTPUT
 import sys
 
 from pywayland.client import Display
@@ -18,7 +21,7 @@ managers = []
 
 
 def on_group(_manager, handle):
-    group = {"outputs": [], "workspaces": []}
+    group = {"handle": handle, "outputs": [], "workspaces": []}
     groups.append(group)
     handle.dispatcher["output_enter"] = lambda _h, o: group["outputs"].append(o)
     handle.dispatcher["output_leave"] = lambda _h, o: group["outputs"].remove(o)
@@ -58,17 +61,23 @@ if not managers:
     raise SystemExit("ext_workspace_manager_v1 is not advertised")
 
 status = 0
-if len(sys.argv) == 3:
-    wanted_output, wanted_name = sys.argv[1:]
+if len(sys.argv) in (3, 4):
+    wanted_output, wanted_name = sys.argv[1:3]
+    remove = sys.argv[3:] == ["remove"]
     status = f"no workspace {wanted_name} on {wanted_output}"
     for group in groups:
-        if wanted_output in label(group).split(","):
-            for handle in group["workspaces"]:
-                if workspaces[handle]["name"] == wanted_name:
-                    handle.activate()
-                    managers[0].commit()
-                    display.roundtrip()
-                    status = 0
+        if wanted_output not in label(group).split(","):
+            continue
+        if wanted_name == "+":
+            group["handle"].create_workspace("")
+            status = 0
+        for handle in group["workspaces"]:
+            if workspaces[handle]["name"] == wanted_name:
+                handle.remove() if remove else handle.activate()
+                status = 0
+    if status == 0:
+        managers[0].commit()
+        display.roundtrip()
 else:
     for group in sorted(groups, key=label):
         names = [("*" if workspaces[w]["active"] else "") + workspaces[w]["name"]

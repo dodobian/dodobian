@@ -25,8 +25,9 @@
     <font><name>Noto Sans</name><size>10</size></font>
   </theme>
   <windowSwitcher><osd show="yes" style="thumbnail" output="cursor"/></windowSwitcher>
-  <!-- Every monitor has desktops of its own, created as needed and named 1, 2, 3...
-       (Dodobian's labwc, patch 0004; another labwc ignores both attributes). -->
+  <!-- Every monitor has desktops of its own, named 1, 2, 3... The user adds and removes them, as
+       on macOS: Super+= and Super+-, or Super+Right on the last desktop if it is not empty; empty
+       desktops stay (Dodobian's labwc, patch 0004; another labwc ignores both attributes). -->
   <desktops perOutput="yes" dynamic="yes" prefix=""/>
   <focus><followMouse>no</followMouse><raiseOnFocus>no</raiseOnFocus></focus>
   <keyboard>
@@ -44,8 +45,12 @@
     <keybind key="W-S-2"><action name="SendToDesktop" to="2" follow="no"/></keybind>
     <keybind key="W-S-3"><action name="SendToDesktop" to="3" follow="no"/></keybind>
     <keybind key="W-S-4"><action name="SendToDesktop" to="4" follow="no"/></keybind>
-    <keybind key="W-Left"><action name="GoToDesktop" to="left" wrap="yes"/></keybind>
-    <keybind key="W-Right"><action name="GoToDesktop" to="right" wrap="yes"/></keybind>
+    <keybind key="W-Left"><action name="GoToDesktop" to="left"/></keybind>
+    <keybind key="W-Right"><action name="GoToDesktop" to="right"/></keybind>
+    <keybind key="W-S-Left"><action name="SendToDesktop" to="left"/></keybind>
+    <keybind key="W-S-Right"><action name="SendToDesktop" to="right"/></keybind>
+    <keybind key="W-equal"><action name="AddDesktop"/></keybind>
+    <keybind key="W-minus"><action name="RemoveDesktop"/></keybind>
     <keybind key="W-Up"><action name="Maximize"/></keybind>
     <keybind key="W-Down"><action name="Iconify"/></keybind>
     <keybind key="W-d"><action name="ToggleShowDesktop"/></keybind>

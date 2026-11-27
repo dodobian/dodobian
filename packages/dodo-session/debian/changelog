@@ -1,3 +1,13 @@
+dodo-session (0.5.0) unstable; urgency=medium
+
+  * Desktops are added and removed by the user, as on macOS, and stay while
+    empty: Super+= adds one, Super+- removes the current one, Super+Right on
+    the last desktop adds one unless it is empty. Super+Shift+Left/Right
+    take the window along (labwc AddDesktop and RemoveDesktop, Dodobian
+    patch 0004).
+
+ -- dmitrax <4255553+dmitrax@users.noreply.github.com>  Fri, 27 Nov 2026 21:00:00 +0400
+
 dodo-session (0.4.0) unstable; urgency=medium
 
   * Every monitor has desktops of its own, created as needed and named by

@@ -49,7 +49,7 @@ Recommends: gvfs,
 Description: Dodo Desktop session: labwc, Waybar and xfdesktop defaults
  Dodo Desktop as a login session: labwc with the Dodo theme,
  key and mouse bindings and an English menu, desktops of its own on every
- monitor, created as needed, a two-bar Waybar panel,
+ monitor that the user adds and removes, a two-bar Waybar panel,
  desktop icons and wallpaper from xfdesktop, and systemd user units that
  start and stop them with the session.
  .

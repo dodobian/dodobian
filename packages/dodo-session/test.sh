@@ -5,7 +5,8 @@
 # The whole session runs once, headless, with two outputs and a user session.conf:
 #   - every script passes dash -n, and no monitor name ships in the package;
 #   - dodo-session starts labwc (the archive's: pixman, no GPU) with our layers, and labwc
-#     reports no error from its config, menu or actions;
+#     reports no error from its config, menu or actions, apart from the actions only our build
+#     has (AddDesktop, RemoveDesktop: patch 0004), which the archive's labwc drops;
 #   - the login-time files are valid: the xfdesktop wallpaper defaults (XML, one entry per output);
 #     the panel wrapper starts Waybar with the Dodo panel;
 #   - the session log says labwc exited cleanly, warns that this labwc is not our build, and
@@ -43,7 +44,8 @@ cat "$log"
 grep -q "labwc exited with 0" "$log"
 grep -q "warning: labwc .* is not a Dodobian build" "$log"
 grep -q "ignoring pinned=" "$log"
-if grep -E '\[ERROR\] \[[^]]*src/(config|menu|action)' "$log"; then
+if grep -E '\[ERROR\] \[[^]]*src/(config|menu|action)' "$log" \
+		| grep -vE 'Invalid action: (AddDesktop|RemoveDesktop)$'; then
 	echo "labwc found errors in the Dodo config"; exit 1
 fi
 [ ! -e "$run/xdg/dodo" ] || { echo "runtime layer left behind"; exit 1; }
