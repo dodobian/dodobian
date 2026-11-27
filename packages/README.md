@@ -7,9 +7,10 @@ Sources of our Debian packages. Configs ship as `.deb`, so `apt upgrade` updates
 | `dodo-theme` | all | labwc theme "Dodo", Waybar style, wallpaper, marks for the panel |
 | `libxfce4windowing` | any | Debian's package rebuilt with our patches: the session can name the primary monitor (`XFW_PRIMARY_MONITOR`) |
 | `labwc` | any | Debian's package rebuilt with our Labwc patches from `labwc/patches/`: renders with SceneFX (needs GLES2), the base for rounded corners and shadows |
-| `dodo-session` | all | The Dodo login session: labwc, Waybar and xfdesktop defaults in `/usr/share/dodo/xdg` (found through `XDG_CONFIG_DIRS`, so `~/.config` wins), per-machine monitors in `/etc/dodo/session.conf`, systemd user units |
+| `dodo-session` | all | The Dodo Desktop login session: labwc, Waybar and xfdesktop defaults in `/usr/share/dodo/xdg` (found through `XDG_CONFIG_DIRS`, so `~/.config` wins), per-machine monitors in `/etc/dodo/session.conf`, systemd user units |
 
-Planned: `dodobian-desktop` (metapackage).
+Planned metapackages: `dodo-desktop` (Dodo Desktop itself, for any distribution) and
+`dodobian-desktop` (`dodo-desktop` plus the archive keyring and the distribution's defaults).
 
 ## Build
 
