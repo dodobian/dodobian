@@ -10,6 +10,8 @@ dodo-session (0.5.0) unstable; urgency=medium
     desktop overview.
   * Desktops slide sideways in half a second and a pill of dots shows which
     one you are on (labwc slideTime and popupStyle, Dodobian patch 0005).
+  * Every desktop of a monitor shows the monitor's wallpaper: a desktop added
+    later was black, as xfdesktop only had wallpapers for desktops 1 to 4.
 
  -- dmitrax <4255553+dmitrax@users.noreply.github.com>  Fri, 27 Nov 2026 21:00:00 +0400
 

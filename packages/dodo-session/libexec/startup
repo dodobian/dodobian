@@ -12,8 +12,10 @@ rt=$(runtime_dir) || exit 1
 wall=/usr/share/backgrounds/dodo/wallpaper-lagoon-dodo-mouse.png
 
 # xfdesktop keeps its wallpaper per output name and desktop; the package can't know the names,
-# so the defaults are written here for the outputs present at login. A user's own choice
-# (~/.config/xfce4/xfconf) wins per property.
+# so the defaults are written here for the outputs present at login. Desktops come and go and
+# xfdesktop numbers them across all monitors, so every desktop of a monitor shows the wallpaper
+# of its desktop 0 (single-workspace-mode). A user's own choice (~/.config/xfce4/xfconf) wins
+# per property.
 outputs=$(wlr-randr --json 2>/dev/null | jq -r '.[] | select(.enabled) | .name' 2>/dev/null)
 x="$rt/xdg/xfce4/xfconf/xfce-perchannel-xml"
 mkdir -p "$x"
@@ -24,17 +26,18 @@ mkdir -p "$x"
 	printf '  <property name="desktop-icons" type="empty">\n'
 	printf '    <property name="primary" type="bool" value="true"/>\n'
 	printf '  </property>\n'
-	printf '  <property name="backdrop" type="empty">\n    <property name="screen0" type="empty">\n'
+	printf '  <property name="backdrop" type="empty">\n'
+	printf '    <property name="single-workspace-mode" type="bool" value="true"/>\n'
+	printf '    <property name="single-workspace-number" type="int" value="0"/>\n'
+	printf '    <property name="screen0" type="empty">\n'
 	for o in $outputs; do
 		valid_outputs "$o" || continue
 		printf '      <property name="monitor%s" type="empty">\n' "$o"
-		for n in 0 1 2 3; do
-			printf '        <property name="workspace%s" type="empty">\n' "$n"
-			printf '          <property name="last-image" type="string" value="%s"/>\n' "$wall"
-			printf '          <property name="image-style" type="int" value="5"/>\n'
-			printf '          <property name="color-style" type="int" value="0"/>\n'
-			printf '        </property>\n'
-		done
+		printf '        <property name="workspace0" type="empty">\n'
+		printf '          <property name="last-image" type="string" value="%s"/>\n' "$wall"
+		printf '          <property name="image-style" type="int" value="5"/>\n'
+		printf '          <property name="color-style" type="int" value="0"/>\n'
+		printf '        </property>\n'
 		printf '      </property>\n'
 	done
 	printf '    </property>\n  </property>\n</channel>\n'

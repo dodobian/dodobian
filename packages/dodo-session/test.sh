@@ -56,6 +56,7 @@ s="$run/snap/dodo"
 x="$s/xdg/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml"
 xmllint --noout "$x"
 [ "$(grep -c 'name="monitorHEADLESS-[12]"' "$x")" = 2 ]
+grep -q 'name="single-workspace-mode" type="bool" value="true"' "$x"  # desktops come and go
 grep -q -- "-c /usr/share/dodo/waybar/config.json" "$run/snap/waybar-args"
 echo "terminal"
 t=$(env -i HOME="$run/home" PATH=/usr/bin:/bin XDG_CONFIG_DIRS=/usr/share/dodo/xdg:/etc/xdg xdg-terminal-exec --print-id)
