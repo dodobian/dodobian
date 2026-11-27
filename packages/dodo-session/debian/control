@@ -46,8 +46,8 @@ Recommends: gvfs,
  xdg-desktop-portal-gtk,
  xdg-desktop-portal-wlr,
  xwayland,
-Description: Dodo desktop session: labwc, Waybar and xfdesktop defaults
- The Dodo desktop as a login session: labwc with the Dodo theme,
+Description: Dodo Desktop session: labwc, Waybar and xfdesktop defaults
+ Dodo Desktop as a login session: labwc with the Dodo theme,
  key and mouse bindings and an English menu, a two-bar Waybar panel,
  desktop icons and wallpaper from xfdesktop, and systemd user units that
  start and stop them with the session.

@@ -1,5 +1,5 @@
 [Desktop Entry]
-Name=Dodo
+Name=Dodo Desktop
 Comment=Classic desktop: labwc, Waybar and xfdesktop
 Exec=/usr/bin/dodo-session
 Type=Application

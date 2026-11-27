@@ -1,3 +1,9 @@
+dodo-session (0.3.1) unstable; urgency=medium
+
+  * The login session is named Dodo Desktop, the desktop's full name.
+
+ -- dmitrax <4255553+dmitrax@users.noreply.github.com>  Fri, 27 Nov 2026 16:00:00 +0400
+
 dodo-session (0.3.0) unstable; urgency=medium
 
   * Terminal through xdg-terminal-exec, xfce4-terminal by default: a user picks

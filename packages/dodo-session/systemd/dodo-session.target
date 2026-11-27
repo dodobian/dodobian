@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright (C) 2026 The Dodobian authors
 [Unit]
-Description=Dodo desktop session
+Description=Dodo Desktop session
 Documentation=man:systemd.special(7)
 BindsTo=graphical-session.target
 Wants=graphical-session-pre.target xdg-desktop-autostart.target dodo-xfdesktop.service dodo-kanshi.service
