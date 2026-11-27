@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright (C) 2026 The Dodobian authors
 #
-# Test of the SceneFX patches (labwc/patches/0001-0003). Run by packages/build.sh inside the
+# Test of our Labwc patches (labwc/patches/0001-0004). Run by packages/build.sh inside the
 # install-test container, after our labwc is installed.
 #   1. labwc links libscenefx-0.5, ahead of wlroots (they export the same wlr_scene_* symbols).
 #   2. With /dev/udmabuf: labwc starts headless on software GLES2 (Mesa llvmpipe) with two foot
@@ -12,7 +12,8 @@
 #      - toplevels.py lists the windows (ext-foreign-toplevel-list), grim -T captures each one
 #        (ext-image-copy-capture with a toplevel source), and check-shot.py checks the size and
 #        the rounded corners of each capture;
-#      - labwc exits cleanly.
+#      - labwc exits cleanly;
+#      - workspaces.sh checks workspaces per output and dynamic workspaces (patch 0004).
 #      Without the device this part is skipped, and says so.
 #   Screenshots go to /test-out when packages/build.sh provides it (build/labwc/test/, also in the
 #   CI artifacts).
@@ -45,7 +46,7 @@ if [ ! -e /dev/udmabuf ]; then
 	exit 0
 fi
 apt-get install -y -qq --no-install-recommends libgl1-mesa-dri libegl-mesa0 grim file foot swaybg \
-	python3-pywayland fonts-dejavu-core >/dev/null
+	python3-pywayland fonts-dejavu-core wtype wlr-randr >/dev/null
 
 here=$(dirname "$0")
 run=$(mktemp -d)
@@ -123,6 +124,7 @@ if headless; then
 	python3 -I "$here/check-shot.py" screen "$run/shots/screen.ppm" 2 || ok=1
 	python3 -I "$here/check-shot.py" capture "$run/shots/ssd-win.ppm" 440 300 || ok=1
 	python3 -I "$here/check-shot.py" capture "$run/shots/csd-win.ppm" 452 312 || ok=1
+	sh "$here/workspaces.sh" || ok=1
 	exit "$ok"
 fi
 

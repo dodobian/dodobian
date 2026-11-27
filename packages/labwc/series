@@ -3,3 +3,4 @@
 0001-scenefx-scene-header.patch
 0002-scenefx-renderer.patch
 0003-scenefx-rounded-corners-and-shadows.patch
+0004-per-output-and-dynamic-workspaces.patch

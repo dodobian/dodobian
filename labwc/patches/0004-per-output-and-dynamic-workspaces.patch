@@ -1,0 +1,1328 @@
+Description: Workspaces of their own on every output, created as needed
+ Labwc has one list of workspaces, and a workspace covers all outputs:
+ switching it switches every monitor. On two monitors that means the side
+ monitor cannot keep its windows while the main one changes workspace. This
+ patch adds two options, both off by default, so stock behaviour is kept:
+ .
+ <desktops perOutput="yes">: every output in the layout gets a group of
+ workspaces of its own, which is also its workspace group in
+ ext-workspace-v1, so panels show the workspaces of the monitor they are
+ on. GoToDesktop switches the output nearest to the cursor, SendToDesktop
+ counts from the window's workspace. A window whose output changes (moved
+ by hand or by MoveToOutput, placed by a window rule) goes to the current
+ workspace of its new output. When an output leaves the layout, its windows
+ are parked, keeping their workspace position, in a global group that is
+ not announced to clients, and Labwc's evacuation then moves them to the
+ same position on the output they land on.
+ .
+ <desktops dynamic="yes">: workspaces are created and removed as needed, as
+ in GNOME: every group ends with one empty workspace, an empty workspace
+ that is not the current one is removed, and workspaces are named by their
+ position. The update runs from an idle callback, after the event that
+ changed the windows.
+ .
+ Inside, struct workspace_group holds what server.workspaces held (the list,
+ current, last and the ext-workspace group). Without perOutput there is one
+ global group spanning all outputs, which is Labwc's behaviour. The debug
+ scene dump names per-output workspaces "OUTPUT/name".
+ .
+ Known limits: changing either option takes effect after a restart; the
+ window menus list the workspaces of the output under the cursor.
+ .
+ Requested upstream in labwc/labwc issue 932; not forwarded yet.
+Author: The Dodobian authors
+Origin: vendor, https://github.com/dodobian/dodobian/tree/main/labwc
+Forwarded: no
+---
+diff --git a/docs/labwc-config.5.scd b/docs/labwc-config.5.scd
+index 80930b3..c4e05da 100644
+--- a/docs/labwc-config.5.scd
++++ b/docs/labwc-config.5.scd
+@@ -626,6 +626,25 @@ extending outward from the snapped edge.
+ *<desktops><prefix>*
+ 	Set the prefix to use when using "number" above. Default is "Workspace".
+ 
++*<desktops perOutput="">* [yes|no]
++	Give every output workspaces of its own. GoToDesktop switches the
++	workspaces of the output nearest to the cursor and leaves the other
++	outputs alone; SendToDesktop counts from the window's workspace. A
++	window moved to another output goes to that output's current
++	workspace. When an output leaves the layout, its windows move to
++	another output, to the workspace with the same position; clients of
++	ext-workspace-v1 see one workspace group per output. Every output
++	starts with the workspaces defined above. Default is no: a workspace
++	covers all outputs. Changing it takes effect after a restart.
++
++*<desktops dynamic="">* [yes|no]
++	Create and remove workspaces as needed: there is always one empty
++	workspace at the end, and an empty workspace that is not the current
++	one is removed. Workspaces are named by their position, from <names>
++	and then with the prefix. <number> and <initial> are ignored. With
++	perOutput, this happens for every output on its own. Default is no.
++	Changing it takes effect after a restart.
++
+ ## THEME
+ 
+ *<theme><name>*
+diff --git a/docs/rc.xml.all b/docs/rc.xml.all
+index cb7db90..39a38e8 100644
+--- a/docs/rc.xml.all
++++ b/docs/rc.xml.all
+@@ -204,6 +204,9 @@
+     Or:
+     <desktops number="4" popupTime="500" prefix="ws" />
+ 
++    Workspaces of their own on every output, created as needed:
++    <desktops perOutput="yes" dynamic="yes" />
++
+     popupTime defaults to 1000 so could be left out.
+     Set to 0 to completely disable the workspace OSD.
+ 
+diff --git a/include/config/rcxml.h b/include/config/rcxml.h
+index de2312e..bf693f3 100644
+--- a/include/config/rcxml.h
++++ b/include/config/rcxml.h
+@@ -186,6 +186,8 @@ struct rcxml {
+ 	struct {
+ 		int popuptime;
+ 		int min_nr_workspaces;
++		bool per_output;
++		bool dynamic;
+ 		char *initial_workspace_name;
+ 		char *prefix;
+ 		struct wl_list workspaces;  /* struct workspace_config.link */
+diff --git a/include/labwc.h b/include/labwc.h
+index 87a4219..60b9b5b 100644
+--- a/include/labwc.h
++++ b/include/labwc.h
+@@ -254,11 +254,13 @@ struct server {
+ 
+ 	/* Workspaces */
+ 	struct {
+-		struct wl_list all;  /* struct workspace.link */
+-		struct workspace *current;
+-		struct workspace *last;
++		struct wl_list groups;  /* struct workspace_group.link */
++		/* Spans all outputs, or holds views on no output (perOutput) */
++		struct workspace_group *global;
++		bool per_output;
++		bool dynamic;
++		struct wl_event_source *update_idle;
+ 		struct wlr_ext_workspace_manager_v1 *ext_manager;
+-		struct wlr_ext_workspace_group_handle_v1 *ext_group;
+ 		struct {
+ 			struct wl_listener layout_output_added;
+ 		} on;
+diff --git a/include/output.h b/include/output.h
+index c17defa..c592d4e 100644
+--- a/include/output.h
++++ b/include/output.h
+@@ -17,6 +17,8 @@ struct output {
+ 	struct wlr_scene_tree *cycle_osd_tree;
+ 	struct wlr_scene_tree *session_lock_tree;
+ 	struct wlr_scene_buffer *workspace_osd;
++	/* The workspaces this output shows, while it is in the layout */
++	struct workspace_group *workspace_group;
+ 
+ 	/* In output-relative scene coordinates */
+ 	struct wlr_box usable_area;
+diff --git a/include/workspaces.h b/include/workspaces.h
+index 3a5c6d0..2253e2e 100644
+--- a/include/workspaces.h
++++ b/include/workspaces.h
+@@ -6,12 +6,32 @@
+ #include <wayland-util.h>
+ #include <wayland-server-core.h>
+ 
++struct output;
+ struct seat;
+ struct server;
++struct view;
+ struct wlr_scene_tree;
+ 
++/*
++ * A set of workspaces that switch together. Without <desktops perOutput>
++ * there is one group spanning all outputs. With it, every output in the
++ * layout has a group of its own, and the global group only holds views
++ * that are on no output (e.g. while all outputs are off).
++ */
++struct workspace_group {
++	struct wl_list link; /* struct server.workspaces.groups */
++	struct output *output; /* NULL for the global group */
++	struct wl_list workspaces; /* struct workspace.link */
++	struct workspace *current;
++	struct workspace *last;
++
++	/* NULL for the global group in per-output mode */
++	struct wlr_ext_workspace_group_handle_v1 *ext_group;
++};
++
+ struct workspace {
+-	struct wl_list link; /* struct server.workspaces */
++	struct wl_list link; /* struct workspace_group.workspaces */
++	struct workspace_group *group;
+ 
+ 	char *name;
+ 	struct wlr_scene_tree *tree;
+@@ -28,4 +48,26 @@ struct workspace *workspaces_find(struct workspace *anchor, const char *name,
+ 	bool wrap);
+ void workspaces_reconfigure(void);
+ 
++/* The current workspace of the output nearest to the cursor */
++struct workspace *workspaces_current(void);
++/* The group whose workspaces the given output shows (never NULL) */
++struct workspace_group *workspaces_group_for_output(struct output *output);
++/* True if the workspace is the current one of its group */
++bool workspace_is_visible(struct workspace *workspace);
++
++/* Output lifecycle: an output enters or leaves the layout */
++void workspaces_output_added(struct output *output);
++void workspaces_output_removed(struct output *output);
++
++/*
++ * Move the view to its output's group after view->output changed: to the
++ * current workspace of that group, or, while outputs are being rearranged,
++ * to the workspace with the same index, so that windows find their way
++ * back when an output is reconnected.
++ */
++void workspaces_view_output_changed(struct view *view);
++
++/* Views were added, removed or moved: update dynamic workspaces */
++void workspaces_views_changed(void);
++
+ #endif /* LABWC_WORKSPACES_H */
+diff --git a/src/action.c b/src/action.c
+index 0821fc4..38a8976 100644
+--- a/src/action.c
++++ b/src/action.c
+@@ -1365,13 +1365,21 @@ run_action(struct view *view, struct action *action,
+ 		 * removed the action during the initial parsing step as it is
+ 		 * a required argument for both SendToDesktop and GoToDesktop.
+ 		 */
++		/*
++		 * With a group of workspaces per output, SendToDesktop counts
++		 * from the window's workspace, GoToDesktop from the output
++		 * under the cursor.
++		 */
++		struct workspace *anchor =
++			action->type == ACTION_TYPE_SEND_TO_DESKTOP
++				? view->workspace->group->current
++				: workspaces_current();
+ 		struct workspace *target_workspace = workspaces_find(
+-			server.workspaces.current, to, wrap);
++			anchor, to, wrap);
+ 		if (action->type == ACTION_TYPE_GO_TO_DESKTOP) {
+ 			bool toggle = action_get_bool(action, "toggle", false);
+-			if (target_workspace == server.workspaces.current
+-				&& toggle) {
+-				target_workspace = server.workspaces.last;
++			if (target_workspace == anchor && toggle) {
++				target_workspace = anchor->group->last;
+ 			}
+ 		}
+ 		if (!target_workspace) {
+diff --git a/src/config/rcxml.c b/src/config/rcxml.c
+index 3276124..15c58b3 100644
+--- a/src/config/rcxml.c
++++ b/src/config/rcxml.c
+@@ -1435,6 +1435,10 @@ entry(xmlNode *node, char *nodename, char *content)
+ 		rc.workspace_config.popuptime = atoi(content);
+ 	} else if (!strcasecmp(nodename, "initial.desktops")) {
+ 		xstrdup_replace(rc.workspace_config.initial_workspace_name, content);
++	} else if (!strcasecmp(nodename, "perOutput.desktops")) {
++		set_bool(content, &rc.workspace_config.per_output);
++	} else if (!strcasecmp(nodename, "dynamic.desktops")) {
++		set_bool(content, &rc.workspace_config.dynamic);
+ 	} else if (!strcasecmp(nodename, "number.desktops")) {
+ 		rc.workspace_config.min_nr_workspaces = MAX(1, atoi(content));
+ 	} else if (!strcasecmp(nodename, "popupShow.resize")) {
+@@ -1648,6 +1652,8 @@ rcxml_init(void)
+ 
+ 	rc.workspace_config.popuptime = INT_MIN;
+ 	rc.workspace_config.min_nr_workspaces = 1;
++	rc.workspace_config.per_output = false;
++	rc.workspace_config.dynamic = false;
+ 
+ 	rc.menu_ignore_button_release_period = 250;
+ 	rc.menu_show_icons = true;
+diff --git a/src/cycle/osd-classic.c b/src/cycle/osd-classic.c
+index 302fcee..2b9bfb7 100644
+--- a/src/cycle/osd-classic.c
++++ b/src/cycle/osd-classic.c
+@@ -84,8 +84,9 @@ cycle_osd_classic_init(struct cycle_osd_output *osd_output)
+ 	struct window_switcher_classic_theme *switcher_theme =
+ 		&theme->osd_window_switcher_classic;
+ 	int padding = theme->osd_border_width + switcher_theme->padding;
+-	bool show_workspace = wl_list_length(&rc.workspace_config.workspaces) > 1;
+-	const char *workspace_name = server.workspaces.current->name;
++	struct workspace_group *group = workspaces_group_for_output(output);
++	bool show_workspace = wl_list_length(&group->workspaces) > 1;
++	const char *workspace_name = group->current->name;
+ 	int nr_views = wl_list_length(&server.cycle.views);
+ 
+ 	struct wlr_box output_box;
+diff --git a/src/debug.c b/src/debug.c
+index 76b8370..b8875a1 100644
+--- a/src/debug.c
++++ b/src/debug.c
+@@ -1,4 +1,5 @@
+ // SPDX-License-Identifier: GPL-2.0-only
++#include <stdio.h>
+ #include "debug.h"
+ #include <stdlib.h>
+ #include <wlr/types/wlr_layer_shell_v1.h>
+@@ -97,10 +98,13 @@ get_view_part(struct view *view, struct wlr_scene_node *node)
+ static struct workspace *
+ get_workspace_from_node(struct wlr_scene_node *node)
+ {
++	struct workspace_group *group;
+ 	struct workspace *workspace;
+-	wl_list_for_each(workspace, &server.workspaces.all, link) {
+-		if (&workspace->tree->node == node) {
+-			return workspace;
++	wl_list_for_each(group, &server.workspaces.groups, link) {
++		wl_list_for_each(workspace, &group->workspaces, link) {
++			if (&workspace->tree->node == node) {
++				return workspace;
++			}
+ 		}
+ 	}
+ 	return NULL;
+@@ -124,6 +128,13 @@ get_special(struct wlr_scene_node *node)
+ 	}
+ 	if (node->parent == server.workspace_tree) {
+ 		struct workspace *workspace = get_workspace_from_node(node);
++		if (workspace && workspace->group->output) {
++			static char name[128];
++			snprintf(name, sizeof(name), "%s/%s",
++				workspace->group->output->wlr_output->name,
++				workspace->name);
++			return name;
++		}
+ 		if (workspace) {
+ 			return workspace->name;
+ 		}
+diff --git a/src/menu/menu.c b/src/menu/menu.c
+index 1827915..bfc649b 100644
+--- a/src/menu/menu.c
++++ b/src/menu/menu.c
+@@ -917,8 +917,10 @@ update_client_send_to_menu(void)
+ 	 * GoToDesktop will be called as part of the action.
+ 	 */
+ 	struct buf buf = BUF_INIT;
+-	wl_list_for_each(workspace, &server.workspaces.all, link) {
+-		if (workspace == server.workspaces.current) {
++	/* With a group per output: the workspaces of the output under the cursor */
++	struct workspace_group *group = workspaces_current()->group;
++	wl_list_for_each(workspace, &group->workspaces, link) {
++		if (workspace == group->current) {
+ 			buf_add_fmt(&buf, ">%s<", workspace->name);
+ 		} else {
+ 			buf_add(&buf, workspace->name);
+@@ -962,8 +964,10 @@ update_client_list_combined_menu(void)
+ 	struct view *view;
+ 	struct buf buffer = BUF_INIT;
+ 
+-	wl_list_for_each(workspace, &server.workspaces.all, link) {
+-		buf_add_fmt(&buffer, workspace == server.workspaces.current ? ">%s<" : "%s",
++	/* With a group per output: the workspaces of the output under the cursor */
++	struct workspace_group *group = workspaces_current()->group;
++	wl_list_for_each(workspace, &group->workspaces, link) {
++		buf_add_fmt(&buffer, workspace == group->current ? ">%s<" : "%s",
+ 				workspace->name);
+ 		separator_create(menu, buffer.data);
+ 		buf_clear(&buffer);
+diff --git a/src/output.c b/src/output.c
+index 48ce8b3..dc5749b 100644
+--- a/src/output.c
++++ b/src/output.c
+@@ -37,6 +37,7 @@
+ #include "regions.h"
+ #include "session-lock.h"
+ #include "view.h"
++#include "workspaces.h"
+ #include "view-fx.h"
+ #include "xwayland.h"
+ 
+@@ -294,6 +295,7 @@ handle_output_destroy(struct wl_listener *listener, void *data)
+ {
+ 	struct output *output = wl_container_of(listener, output, destroy);
+ 	struct seat *seat = &server.seat;
++	workspaces_output_removed(output);
+ 	regions_evacuate_output(output);
+ 	regions_destroy(seat, &output->regions);
+ 	if (seat->overlay.active.output == output) {
+@@ -432,8 +434,7 @@ add_output_to_layout(struct output *output)
+ 			layout_output, output->scene_output);
+ 	}
+ 
+-	wlr_ext_workspace_group_handle_v1_output_enter(
+-		server.workspaces.ext_group, output->wlr_output);
++	workspaces_output_added(output);
+ 
+ 	/* (Re-)create regions from config */
+ 	regions_reconfigure_output(output);
+@@ -919,8 +920,7 @@ output_config_apply(struct wlr_output_configuration_v1 *config)
+ 		} else if (was_in_layout) {
+ 			regions_evacuate_output(output);
+ 
+-			wlr_ext_workspace_group_handle_v1_output_leave(
+-				server.workspaces.ext_group, output->wlr_output);
++			workspaces_output_removed(output);
+ 
+ 			/*
+ 			 * wlr_output_layout_remove() only unbinds the
+diff --git a/src/view-impl-common.c b/src/view-impl-common.c
+index 092ca55..1d127de 100644
+--- a/src/view-impl-common.c
++++ b/src/view-impl-common.c
+@@ -5,11 +5,13 @@
+ #include "labwc.h"
+ #include "view.h"
+ #include "window-rules.h"
++#include "workspaces.h"
+ 
+ void
+ view_impl_map(struct view *view)
+ {
+ 	view_update_visibility(view);
++	workspaces_views_changed();
+ 
+ 	/* Leave minimized, if minimized before map */
+ 	if (!view->minimized) {
+@@ -45,6 +47,7 @@ void
+ view_impl_unmap(struct view *view)
+ {
+ 	view_update_visibility(view);
++	workspaces_views_changed();
+ 
+ 	/*
+ 	 * When exiting an xwayland application with multiple views
+diff --git a/src/view.c b/src/view.c
+index d98964a..d82a768 100644
+--- a/src/view.c
++++ b/src/view.c
+@@ -205,7 +205,7 @@ view_matches_query(struct view *view, struct view_query *query)
+ 
+ 	if (query->desktop) {
+ 		const char *view_workspace = view->workspace->name;
+-		struct workspace *current = server.workspaces.current;
++		struct workspace *current = view->workspace->group->current;
+ 
+ 		if (!strcasecmp(query->desktop, "other")) {
+ 			/* "other" means the view is NOT on the current desktop */
+@@ -271,7 +271,7 @@ view_matches_criteria(struct view *view, enum lab_view_criteria criteria)
+ 		return false;
+ 	}
+ 	if (criteria & LAB_VIEW_CRITERIA_CURRENT_WORKSPACE) {
+-		if (view->workspace != server.workspaces.current) {
++		if (!workspace_is_visible(view->workspace)) {
+ 			return false;
+ 		}
+ 	}
+@@ -454,6 +454,7 @@ view_discover_output(struct view *view, struct wlr_box *geometry)
+ 
+ 	if (output && output != view->output) {
+ 		view->output = output;
++		workspaces_view_output_changed(view);
+ 		return true;
+ 	}
+ 
+@@ -495,6 +496,7 @@ view_set_output(struct view *view, struct output *output)
+ 		return;
+ 	}
+ 	view->output = output;
++	workspaces_view_output_changed(view);
+ 	/* Show fullscreen views above top-layer */
+ 	if (view->fullscreen) {
+ 		desktop_update_top_layer_visibility();
+@@ -1585,6 +1587,7 @@ view_toggle_visible_on_all_workspaces(struct view *view)
+ 	assert(view);
+ 	view->visible_on_all_workspaces = !view->visible_on_all_workspaces;
+ 	ssd_update_geometry(view->ssd);
++	workspaces_views_changed();
+ }
+ 
+ void
+@@ -1596,6 +1599,7 @@ view_move_to_workspace(struct view *view, struct workspace *workspace)
+ 		view->workspace = workspace;
+ 		wlr_scene_node_reparent(&view->scene_tree->node,
+ 			workspace->view_trees[view->layer]);
++		workspaces_views_changed();
+ 	}
+ }
+ 
+@@ -1801,6 +1805,7 @@ view_adjust_for_layout_change(struct view *view)
+ 	}
+ 
+ 	view_update_outputs(view);
++	workspaces_view_output_changed(view);
+ 	view->adjusting_for_layout_change = false;
+ }
+ 
+@@ -2546,6 +2551,7 @@ view_destroy(struct view *view)
+ 
+ 	/* TODO: call this on map/unmap instead */
+ 	cycle_reinitialize();
++	workspaces_views_changed();
+ 
+ 	undecorate(view);
+ 
+diff --git a/src/workspaces.c b/src/workspaces.c
+index ca1de48..107e5e1 100644
+--- a/src/workspaces.c
++++ b/src/workspaces.c
+@@ -16,13 +16,16 @@
+ #include "common/graphic-helpers.h"
+ #include "common/list.h"
+ #include "common/mem.h"
++#include "common/buf.h"
+ #include "common/scene-helpers.h"
++#include "common/string-helpers.h"
+ #include "config/rcxml.h"
+ #include "input/keyboard.h"
+ #include "labwc.h"
+ #include "output.h"
+ #include "show-desktop.h"
+ #include "theme.h"
++#include "translate.h"
+ #include "view.h"
+ 
+ #define EXT_WORKSPACES_VERSION 1
+@@ -60,8 +63,79 @@ parse_workspace_index(const char *name)
+ 	return index;
+ }
+ 
++static bool
++per_output(void)
++{
++	return server.workspaces.per_output;
++}
++
++static bool
++dynamic(void)
++{
++	return server.workspaces.dynamic;
++}
++
++static size_t
++workspace_index(struct workspace *workspace)
++{
++	size_t index = 0;
++	struct workspace *w;
++	wl_list_for_each(w, &workspace->group->workspaces, link) {
++		if (w == workspace) {
++			return index;
++		}
++		index++;
++	}
++	return 0;
++}
++
++/* Name of the workspace at index (0-based): from <names>, else "<prefix> N" */
++static char *
++name_for_index(size_t index)
++{
++	size_t i = 0;
++	struct workspace_config *conf;
++	wl_list_for_each(conf, &rc.workspace_config.workspaces, link) {
++		if (i++ == index) {
++			return xstrdup(conf->name);
++		}
++	}
++	const char *prefix = rc.workspace_config.prefix
++		? rc.workspace_config.prefix : _("Workspace");
++	struct buf b = BUF_INIT;
++	if (!string_null_or_empty(prefix)) {
++		buf_add_fmt(&b, "%s ", prefix);
++	}
++	buf_add_fmt(&b, "%zu", index + 1);
++	char *name = xstrdup(b.data);
++	buf_reset(&b);
++	return name;
++}
++
+ static void
+-_osd_update(void)
++set_name(struct workspace *workspace, const char *name)
++{
++	if (!strcmp(workspace->name, name)) {
++		return;
++	}
++	xstrdup_replace(workspace->name, name);
++	if (workspace->ext_workspace) {
++		wlr_ext_workspace_handle_v1_set_name(
++			workspace->ext_workspace, workspace->name);
++	}
++}
++
++static void
++set_active(struct workspace *workspace, bool active)
++{
++	if (workspace->ext_workspace) {
++		wlr_ext_workspace_handle_v1_set_active(
++			workspace->ext_workspace, active);
++	}
++}
++
++static void
++_osd_update(struct workspace_group *group)
+ {
+ 	struct theme *theme = rc.theme;
+ 
+@@ -74,7 +148,7 @@ _osd_update(void)
+ 		theme->osd_workspace_switcher_boxes_height == 0;
+ 
+ 	/* Dimensions */
+-	size_t workspace_count = wl_list_length(&server.workspaces.all);
++	size_t workspace_count = wl_list_length(&group->workspaces);
+ 	uint16_t marker_width = workspace_count * (rect_width + padding) - padding;
+ 	uint16_t width = margin * 2 + (marker_width < 200 ? 200 : marker_width);
+ 	uint16_t height = margin * (hide_boxes ? 2 : 3) + rect_height + font_height(&rc.font_osd);
+@@ -88,6 +162,9 @@ _osd_update(void)
+ 		if (!output_is_usable(output)) {
+ 			continue;
+ 		}
++		if (workspaces_group_for_output(output) != group) {
++			continue;
++		}
+ 		struct lab_data_buffer *buffer = buffer_create_cairo(width, height,
+ 			output->wlr_output->scale);
+ 		if (!buffer) {
+@@ -114,8 +191,8 @@ _osd_update(void)
+ 		uint16_t x;
+ 		if (!hide_boxes) {
+ 			x = (width - marker_width) / 2;
+-			wl_list_for_each(workspace, &server.workspaces.all, link) {
+-				bool active = workspace == server.workspaces.current;
++			wl_list_for_each(workspace, &group->workspaces, link) {
++				bool active = workspace == group->current;
+ 				set_cairo_color(cairo, rc.theme->osd_label_text_color);
+ 				struct wlr_fbox fbox = {
+ 					.x = x,
+@@ -141,7 +218,7 @@ _osd_update(void)
+ 		pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_END);
+ 
+ 		/* Center workspace indicator on the x axis */
+-		int req_width = font_width(&rc.font_osd, server.workspaces.current->name);
++		int req_width = font_width(&rc.font_osd, group->current->name);
+ 		req_width = MIN(req_width, width - 2 * margin);
+ 		x = (width - req_width) / 2;
+ 		if (!hide_boxes) {
+@@ -154,7 +231,7 @@ _osd_update(void)
+ 		pango_layout_set_font_description(layout, desc);
+ 		pango_layout_set_width(layout, req_width * PANGO_SCALE);
+ 		pango_font_description_free(desc);
+-		pango_layout_set_text(layout, server.workspaces.current->name, -1);
++		pango_layout_set_text(layout, group->current->name, -1);
+ 		pango_cairo_show_layout(cairo, layout);
+ 
+ 		g_object_unref(layout);
+@@ -183,7 +260,7 @@ _osd_update(void)
+ }
+ 
+ static struct workspace *
+-workspace_find_by_name(const char *name)
++workspace_find_by_name(struct workspace_group *group, const char *name)
+ {
+ 	struct workspace *workspace;
+ 
+@@ -191,7 +268,7 @@ workspace_find_by_name(const char *name)
+ 	size_t parsed_index = parse_workspace_index(name);
+ 	if (parsed_index) {
+ 		size_t index = 0;
+-		wl_list_for_each(workspace, &server.workspaces.all, link) {
++		wl_list_for_each(workspace, &group->workspaces, link) {
+ 			if (parsed_index == ++index) {
+ 				return workspace;
+ 			}
+@@ -199,7 +276,7 @@ workspace_find_by_name(const char *name)
+ 	}
+ 
+ 	/* by name */
+-	wl_list_for_each(workspace, &server.workspaces.all, link) {
++	wl_list_for_each(workspace, &group->workspaces, link) {
+ 		if (!strcmp(workspace->name, name)) {
+ 			return workspace;
+ 		}
+@@ -225,10 +302,11 @@ handle_ext_workspace_commit(struct wl_listener *listener, void *data)
+ }
+ 
+ /* Internal API */
+-static void
+-add_workspace(const char *name)
++static struct workspace *
++add_workspace(struct workspace_group *group, const char *name)
+ {
+ 	struct workspace *workspace = znew(*workspace);
++	workspace->group = group;
+ 	workspace->name = xstrdup(name);
+ 	workspace->tree = lab_wlr_scene_tree_create(server.workspace_tree);
+ 	workspace->view_trees[VIEW_LAYER_ALWAYS_ON_BOTTOM] =
+@@ -237,16 +315,119 @@ add_workspace(const char *name)
+ 		lab_wlr_scene_tree_create(workspace->tree);
+ 	workspace->view_trees[VIEW_LAYER_ALWAYS_ON_TOP] =
+ 		lab_wlr_scene_tree_create(workspace->tree);
+-	wl_list_append(&server.workspaces.all, &workspace->link);
++	wl_list_append(&group->workspaces, &workspace->link);
+ 	wlr_scene_node_set_enabled(&workspace->tree->node, false);
+ 
+-	workspace->ext_workspace = wlr_ext_workspace_handle_v1_create(
+-		server.workspaces.ext_manager, /*id*/ NULL,
+-		EXT_WORKSPACE_HANDLE_V1_WORKSPACE_CAPABILITIES_ACTIVATE);
+-	workspace->ext_workspace->data = workspace;
+-	wlr_ext_workspace_handle_v1_set_group(
+-		workspace->ext_workspace, server.workspaces.ext_group);
+-	wlr_ext_workspace_handle_v1_set_name(workspace->ext_workspace, name);
++	if (group->ext_group) {
++		workspace->ext_workspace = wlr_ext_workspace_handle_v1_create(
++			server.workspaces.ext_manager, /*id*/ NULL,
++			EXT_WORKSPACE_HANDLE_V1_WORKSPACE_CAPABILITIES_ACTIVATE);
++		workspace->ext_workspace->data = workspace;
++		wlr_ext_workspace_handle_v1_set_group(
++			workspace->ext_workspace, group->ext_group);
++		wlr_ext_workspace_handle_v1_set_name(workspace->ext_workspace, name);
++	}
++	return workspace;
++}
++
++static void
++destroy_workspace(struct workspace *workspace)
++{
++	wlr_scene_node_destroy(&workspace->tree->node);
++	zfree(workspace->name);
++	wl_list_remove(&workspace->link);
++
++	if (workspace->ext_workspace) {
++		wlr_ext_workspace_handle_v1_destroy(workspace->ext_workspace);
++	}
++	free(workspace);
++}
++
++/*
++ * The workspace at index in group. Dynamic groups grow to have it,
++ * static ones give their last workspace instead.
++ */
++static struct workspace *
++group_workspace_at(struct workspace_group *group, size_t index)
++{
++	size_t i = 0;
++	struct workspace *workspace;
++	wl_list_for_each(workspace, &group->workspaces, link) {
++		if (i++ == index) {
++			return workspace;
++		}
++	}
++	if (!dynamic()) {
++		return wl_container_of(group->workspaces.prev, workspace, link);
++	}
++	while (i <= index) {
++		char *name = name_for_index(i++);
++		workspace = add_workspace(group, name);
++		free(name);
++	}
++	return workspace;
++}
++
++static struct workspace_group *
++group_create(struct output *output, bool with_ext)
++{
++	struct workspace_group *group = znew(*group);
++	group->output = output;
++	wl_list_init(&group->workspaces);
++	if (with_ext) {
++		group->ext_group = wlr_ext_workspace_group_handle_v1_create(
++			server.workspaces.ext_manager, /*caps*/ 0);
++	}
++
++	if (dynamic()) {
++		/* The trailing empty workspace is added on the next update */
++		char *name = name_for_index(0);
++		add_workspace(group, name);
++		free(name);
++	} else {
++		struct workspace_config *conf;
++		wl_list_for_each(conf, &rc.workspace_config.workspaces, link) {
++			add_workspace(group, conf->name);
++		}
++	}
++
++	/*
++	 * After adding workspaces, check if there is an initial workspace
++	 * selected and set that as the initial workspace.
++	 */
++	char *initial_name = rc.workspace_config.initial_workspace_name;
++	struct workspace *initial = NULL;
++	if (initial_name) {
++		initial = workspace_find_by_name(group, initial_name);
++	}
++	if (!initial) {
++		initial = wl_container_of(group->workspaces.next, initial, link);
++	}
++	group->current = initial;
++	wlr_scene_node_set_enabled(&initial->tree->node, true);
++	set_active(initial, true);
++
++	wl_list_append(&server.workspaces.groups, &group->link);
++	if (output && group->ext_group) {
++		wlr_ext_workspace_group_handle_v1_output_enter(
++			group->ext_group, output->wlr_output);
++	}
++	workspaces_views_changed();
++	return group;
++}
++
++static void
++group_destroy(struct workspace_group *group)
++{
++	struct workspace *workspace, *tmp;
++	wl_list_for_each_safe(workspace, tmp, &group->workspaces, link) {
++		destroy_workspace(workspace);
++	}
++	if (group->ext_group) {
++		wlr_ext_workspace_group_handle_v1_destroy(group->ext_group);
++	}
++	wl_list_remove(&group->link);
++	free(group);
+ }
+ 
+ static struct workspace *
+@@ -292,6 +473,24 @@ workspace_has_views(struct workspace *workspace)
+ 	return false;
+ }
+ 
++/*
++ * A dynamic workspace is kept while it holds a window, mapped or
++ * minimized. Omnipresent windows belong to no workspace in particular.
++ */
++static bool
++workspace_is_occupied(struct workspace *workspace)
++{
++	struct view *view;
++	wl_list_for_each(view, &server.views, link) {
++		if (view->workspace == workspace
++				&& !view->visible_on_all_workspaces
++				&& (view->mapped || view->minimized)) {
++			return true;
++		}
++	}
++	return false;
++}
++
+ static struct workspace *
+ get_adjacent_occupied(struct workspace *current, struct wl_list *workspaces,
+ 		bool wrap, bool reverse)
+@@ -357,16 +556,17 @@ _osd_handle_timeout(void *data)
+ }
+ 
+ static void
+-_osd_show(void)
++_osd_show(struct workspace_group *group)
+ {
+ 	if (!rc.workspace_config.popuptime) {
+ 		return;
+ 	}
+ 
+-	_osd_update();
++	_osd_update(group);
+ 	struct output *output;
+ 	wl_list_for_each(output, &server.outputs, link) {
+-		if (output_is_usable(output) && output->workspace_osd) {
++		if (output_is_usable(output) && output->workspace_osd
++				&& workspaces_group_for_output(output) == group) {
+ 			wlr_scene_node_set_enabled(&output->workspace_osd->node, true);
+ 		}
+ 	}
+@@ -384,46 +584,198 @@ _osd_show(void)
+ 	}
+ }
+ 
++/*
++ * Dynamic workspaces, as in GNOME: every group ends with one empty
++ * workspace, and an empty workspace that is not the current one goes
++ * away. The remaining ones are renamed by their position.
++ */
++static void
++group_update_dynamic(struct workspace_group *group)
++{
++	struct workspace *workspace, *tmp;
++	wl_list_for_each_safe(workspace, tmp, &group->workspaces, link) {
++		if (workspace == group->current
++				|| workspace->link.next == &group->workspaces
++				|| workspace_is_occupied(workspace)) {
++			continue;
++		}
++		/* Unmapped and omnipresent views may still live in its tree */
++		struct view *view;
++		wl_list_for_each(view, &server.views, link) {
++			if (view->workspace == workspace) {
++				view_move_to_workspace(view, group->current);
++			}
++		}
++		if (group->last == workspace) {
++			group->last = NULL;
++		}
++		destroy_workspace(workspace);
++	}
++
++	struct workspace *tail =
++		wl_container_of(group->workspaces.prev, tail, link);
++	if (workspace_is_occupied(tail)) {
++		char *name = name_for_index(wl_list_length(&group->workspaces));
++		add_workspace(group, name);
++		free(name);
++	} else if (tail != group->current
++			&& group->current->link.next == &tail->link
++			&& !workspace_is_occupied(group->current)) {
++		/* The current workspace is empty and last but one: it is the tail */
++		struct view *view;
++		wl_list_for_each(view, &server.views, link) {
++			if (view->workspace == tail) {
++				view_move_to_workspace(view, group->current);
++			}
++		}
++		if (group->last == tail) {
++			group->last = NULL;
++		}
++		destroy_workspace(tail);
++	}
++
++	size_t index = 0;
++	wl_list_for_each(workspace, &group->workspaces, link) {
++		char *name = name_for_index(index++);
++		set_name(workspace, name);
++		free(name);
++	}
++}
++
++static void
++handle_update_idle(void *data)
++{
++	server.workspaces.update_idle = NULL;
++	struct workspace_group *group;
++	wl_list_for_each(group, &server.workspaces.groups, link) {
++		group_update_dynamic(group);
++	}
++}
++
+ /* Public API */
++void
++workspaces_views_changed(void)
++{
++	if (!dynamic() || server.workspaces.update_idle) {
++		return;
++	}
++	server.workspaces.update_idle = wl_event_loop_add_idle(
++		server.wl_event_loop, handle_update_idle, NULL);
++}
++
+ void
+ workspaces_init(void)
+ {
+ 	server.workspaces.ext_manager = wlr_ext_workspace_manager_v1_create(
+ 		server.wl_display, EXT_WORKSPACES_VERSION);
+ 
+-	server.workspaces.ext_group = wlr_ext_workspace_group_handle_v1_create(
+-		server.workspaces.ext_manager, /*caps*/ 0);
+-
+ 	server.workspaces.on_ext_manager.commit.notify = handle_ext_workspace_commit;
+ 	wl_signal_add(&server.workspaces.ext_manager->events.commit,
+ 		&server.workspaces.on_ext_manager.commit);
+ 
+-	wl_list_init(&server.workspaces.all);
++	/* Changing either needs a restart */
++	server.workspaces.per_output = rc.workspace_config.per_output;
++	server.workspaces.dynamic = rc.workspace_config.dynamic;
+ 
+-	struct workspace_config *conf;
+-	wl_list_for_each(conf, &rc.workspace_config.workspaces, link) {
+-		add_workspace(conf->name);
+-	}
++	wl_list_init(&server.workspaces.groups);
+ 
+ 	/*
+-	 * After adding workspaces, check if there is an initial workspace
+-	 * selected and set that as the initial workspace.
++	 * Without perOutput the global group is the only one and spans all
++	 * outputs. With it, the global group only holds views that are on
++	 * no output and is not announced to clients.
+ 	 */
+-	char *initial_name = rc.workspace_config.initial_workspace_name;
+-	struct workspace *initial = NULL;
+-	struct workspace *first = wl_container_of(
+-		server.workspaces.all.next, first, link);
++	server.workspaces.global =
++		group_create(NULL, /* with_ext */ !per_output());
++}
+ 
+-	if (initial_name) {
+-		initial = workspace_find_by_name(initial_name);
++struct workspace *
++workspaces_current(void)
++{
++	if (!per_output()) {
++		return server.workspaces.global->current;
+ 	}
+-	if (!initial) {
+-		initial = first;
++	return workspaces_group_for_output(output_nearest_to_cursor())->current;
++}
++
++struct workspace_group *
++workspaces_group_for_output(struct output *output)
++{
++	if (output && output->workspace_group) {
++		return output->workspace_group;
+ 	}
++	return server.workspaces.global;
++}
+ 
+-	server.workspaces.current = initial;
+-	wlr_scene_node_set_enabled(&initial->tree->node, true);
+-	wlr_ext_workspace_handle_v1_set_active(initial->ext_workspace, true);
++bool
++workspace_is_visible(struct workspace *workspace)
++{
++	return workspace && workspace == workspace->group->current;
++}
++
++void
++workspaces_output_added(struct output *output)
++{
++	if (!per_output()) {
++		output->workspace_group = server.workspaces.global;
++		wlr_ext_workspace_group_handle_v1_output_enter(
++			server.workspaces.global->ext_group, output->wlr_output);
++		return;
++	}
++	if (!output->workspace_group) {
++		output->workspace_group = group_create(output, /* with_ext */ true);
++	}
++}
++
++void
++workspaces_output_removed(struct output *output)
++{
++	struct workspace_group *group = output->workspace_group;
++	if (!group) {
++		return;
++	}
++	output->workspace_group = NULL;
++
++	if (!per_output()) {
++		wlr_ext_workspace_group_handle_v1_output_leave(
++			group->ext_group, output->wlr_output);
++		return;
++	}
++
++	/*
++	 * Park the views in the global group, keeping their workspace
++	 * index. Rearranging the layout then moves them to the output
++	 * they end up on (see workspaces_view_output_changed()).
++	 */
++	struct workspace_group *global = server.workspaces.global;
++	struct view *view;
++	wl_list_for_each(view, &server.views, link) {
++		if (!view->workspace || view->workspace->group != group) {
++			continue;
++		}
++		struct workspace *target = view->visible_on_all_workspaces
++			? global->current
++			: group_workspace_at(global, workspace_index(view->workspace));
++		view_move_to_workspace(view, target);
++	}
++	group_destroy(group);
++	workspaces_views_changed();
++}
++
++void
++workspaces_view_output_changed(struct view *view)
++{
++	if (!per_output() || !view->workspace) {
++		return;
++	}
++	struct workspace_group *target = workspaces_group_for_output(view->output);
++	if (view->workspace->group == target) {
++		return;
++	}
++	struct workspace *workspace = target->current;
++	if (view->adjusting_for_layout_change && !view->visible_on_all_workspaces) {
++		workspace = group_workspace_at(target, workspace_index(view->workspace));
++	}
++	view_move_to_workspace(view, workspace);
+ }
+ 
+ /*
+@@ -435,16 +787,14 @@ void
+ workspaces_switch_to(struct workspace *target, bool update_focus)
+ {
+ 	assert(target);
+-	if (target == server.workspaces.current) {
++	struct workspace_group *group = target->group;
++	if (target == group->current) {
+ 		return;
+ 	}
+ 
+ 	/* Disable the old workspace */
+-	wlr_scene_node_set_enabled(
+-		&server.workspaces.current->tree->node, false);
+-
+-	wlr_ext_workspace_handle_v1_set_active(
+-		server.workspaces.current->ext_workspace, false);
++	wlr_scene_node_set_enabled(&group->current->tree->node, false);
++	set_active(group->current, false);
+ 
+ 	/*
+ 	 * Move Omnipresent views to new workspace.
+@@ -453,7 +803,8 @@ workspaces_switch_to(struct workspace *target, bool update_focus)
+ 	 */
+ 	struct view *view;
+ 	wl_list_for_each_reverse(view, &server.views, link) {
+-		if (view->visible_on_all_workspaces) {
++		if (view->visible_on_all_workspaces
++				&& view->workspace && view->workspace->group == group) {
+ 			view_move_to_workspace(view, target);
+ 		}
+ 	}
+@@ -462,29 +813,46 @@ workspaces_switch_to(struct workspace *target, bool update_focus)
+ 	wlr_scene_node_set_enabled(&target->tree->node, true);
+ 
+ 	/* Save the last visited workspace */
+-	server.workspaces.last = server.workspaces.current;
++	group->last = group->current;
+ 
+ 	/* Make sure new views will spawn on the new workspace */
+-	server.workspaces.current = target;
++	group->current = target;
+ 
+ 	struct view *grabbed_view = server.grabbed_view;
+-	if (grabbed_view) {
++	if (grabbed_view && grabbed_view->workspace
++			&& grabbed_view->workspace->group == group) {
+ 		view_move_to_workspace(grabbed_view, target);
+ 	}
+ 
+ 	/*
+ 	 * Make sure we are focusing what the user sees. Only refocus if
+-	 * the focus is not already on an omnipresent view.
++	 * the focus is not already on an omnipresent view. With a group
++	 * per output, focus the topmost window of the new workspace.
+ 	 */
+ 	if (update_focus) {
+ 		struct view *active_view = server.active_view;
+-		if (!(active_view && active_view->visible_on_all_workspaces)) {
+-			desktop_focus_topmost_view();
++		if (!(active_view && active_view->visible_on_all_workspaces
++				&& active_view->workspace->group == group)) {
++			struct view *topmost = NULL;
++			if (per_output()) {
++				for_each_view(view, &server.views,
++						LAB_VIEW_CRITERIA_CURRENT_WORKSPACE) {
++					if (view->workspace == target && !view->minimized) {
++						topmost = view;
++						break;
++					}
++				}
++			}
++			if (topmost) {
++				desktop_focus_view(topmost, /*raise*/ true);
++			} else {
++				desktop_focus_topmost_view();
++			}
+ 		}
+ 	}
+ 
+ 	/* And finally show the OSD */
+-	_osd_show();
++	_osd_show(group);
+ 
+ 	/*
+ 	 * Make sure we are not carrying around a
+@@ -495,9 +863,11 @@ workspaces_switch_to(struct workspace *target, bool update_focus)
+ 	/* Ensure that only currently visible fullscreen windows hide the top layer */
+ 	desktop_update_top_layer_visibility();
+ 
+-	wlr_ext_workspace_handle_v1_set_active(target->ext_workspace, true);
++	set_active(target, true);
+ 
+ 	show_desktop_reset();
++
++	workspaces_views_changed();
+ }
+ 
+ void
+@@ -525,12 +895,13 @@ workspaces_find(struct workspace *anchor, const char *name, bool wrap)
+ 	if (!name) {
+ 		return NULL;
+ 	}
+-	struct wl_list *workspaces = &server.workspaces.all;
++	struct workspace_group *group = anchor->group;
++	struct wl_list *workspaces = &group->workspaces;
+ 
+ 	if (!strcasecmp(name, "current")) {
+ 		return anchor;
+ 	} else if (!strcasecmp(name, "last")) {
+-		return server.workspaces.last;
++		return group->last;
+ 	} else if (!strcasecmp(name, "left")) {
+ 		return get_prev(anchor, workspaces, wrap);
+ 	} else if (!strcasecmp(name, "right")) {
+@@ -540,23 +911,18 @@ workspaces_find(struct workspace *anchor, const char *name, bool wrap)
+ 	} else if (!strcasecmp(name, "right-occupied")) {
+ 		return get_next_occupied(anchor, workspaces, wrap);
+ 	}
+-	return workspace_find_by_name(name);
++	return workspace_find_by_name(group, name);
+ }
+ 
+ static void
+-destroy_workspace(struct workspace *workspace)
++group_reconfigure(struct workspace_group *group)
+ {
+-	wlr_scene_node_destroy(&workspace->tree->node);
+-	zfree(workspace->name);
+-	wl_list_remove(&workspace->link);
+-
+-	wlr_ext_workspace_handle_v1_destroy(workspace->ext_workspace);
+-	free(workspace);
+-}
++	if (dynamic()) {
++		/* Names follow the positions */
++		group_update_dynamic(group);
++		return;
++	}
+ 
+-void
+-workspaces_reconfigure(void)
+-{
+ 	/*
+ 	 * Compare actual workspace list with the new desired configuration to:
+ 	 *   - Update names
+@@ -564,41 +930,39 @@ workspaces_reconfigure(void)
+ 	 *   - Destroy workspaces if fewer workspace are desired
+ 	 */
+ 
+-	struct wl_list *workspace_link = server.workspaces.all.next;
++	struct wl_list *workspace_link = group->workspaces.next;
+ 
+ 	struct workspace_config *conf;
+ 	wl_list_for_each(conf, &rc.workspace_config.workspaces, link) {
+ 		struct workspace *workspace = wl_container_of(
+ 			workspace_link, workspace, link);
+ 
+-		if (workspace_link == &server.workspaces.all) {
++		if (workspace_link == &group->workspaces) {
+ 			/* # of configured workspaces increased */
+ 			wlr_log(WLR_DEBUG, "Adding workspace \"%s\"",
+ 				conf->name);
+-			add_workspace(conf->name);
++			add_workspace(group, conf->name);
+ 			continue;
+ 		}
+ 		if (strcmp(workspace->name, conf->name)) {
+ 			/* Workspace is renamed */
+ 			wlr_log(WLR_DEBUG, "Renaming workspace \"%s\" to \"%s\"",
+ 				workspace->name, conf->name);
+-			xstrdup_replace(workspace->name, conf->name);
+-			wlr_ext_workspace_handle_v1_set_name(
+-				workspace->ext_workspace, workspace->name);
++			set_name(workspace, conf->name);
+ 		}
+ 		workspace_link = workspace_link->next;
+ 	}
+ 
+-	if (workspace_link == &server.workspaces.all) {
++	if (workspace_link == &group->workspaces) {
+ 		return;
+ 	}
+ 
+ 	/* # of configured workspaces decreased */
+ 	overlay_finish(&server.seat);
+ 	struct workspace *first_workspace =
+-		wl_container_of(server.workspaces.all.next, first_workspace, link);
++		wl_container_of(group->workspaces.next, first_workspace, link);
+ 
+-	while (workspace_link != &server.workspaces.all) {
++	while (workspace_link != &group->workspaces) {
+ 		struct workspace *workspace = wl_container_of(
+ 			workspace_link, workspace, link);
+ 
+@@ -612,12 +976,12 @@ workspaces_reconfigure(void)
+ 			}
+ 		}
+ 
+-		if (server.workspaces.current == workspace) {
++		if (group->current == workspace) {
+ 			workspaces_switch_to(first_workspace,
+ 				/* update_focus */ true);
+ 		}
+-		if (server.workspaces.last == workspace) {
+-			server.workspaces.last = first_workspace;
++		if (group->last == workspace) {
++			group->last = first_workspace;
+ 		}
+ 
+ 		workspace_link = workspace_link->next;
+@@ -625,13 +989,32 @@ workspaces_reconfigure(void)
+ 	}
+ }
+ 
++void
++workspaces_reconfigure(void)
++{
++	if (rc.workspace_config.per_output != server.workspaces.per_output
++			|| rc.workspace_config.dynamic != server.workspaces.dynamic) {
++		wlr_log(WLR_ERROR, "<desktops perOutput=\"\" dynamic=\"\"> "
++			"changes take effect after a restart");
++	}
++	struct workspace_group *group;
++	wl_list_for_each(group, &server.workspaces.groups, link) {
++		group_reconfigure(group);
++	}
++}
++
+ void
+ workspaces_destroy(void)
+ {
+-	struct workspace *workspace, *tmp;
+-	wl_list_for_each_safe(workspace, tmp, &server.workspaces.all, link) {
+-		destroy_workspace(workspace);
++	if (server.workspaces.update_idle) {
++		wl_event_source_remove(server.workspaces.update_idle);
++		server.workspaces.update_idle = NULL;
++	}
++	struct workspace_group *group, *tmp;
++	wl_list_for_each_safe(group, tmp, &server.workspaces.groups, link) {
++		group_destroy(group);
+ 	}
+-	assert(wl_list_empty(&server.workspaces.all));
++	assert(wl_list_empty(&server.workspaces.groups));
++	server.workspaces.global = NULL;
+ 	wl_list_remove(&server.workspaces.on_ext_manager.commit.link);
+ }
+diff --git a/src/xdg.c b/src/xdg.c
+index 656907e..fbc8226 100644
+--- a/src/xdg.c
++++ b/src/xdg.c
+@@ -1040,7 +1040,7 @@ handle_new_xdg_toplevel(struct wl_listener *listener, void *data)
+ 			view->output->wlr_output->scale);
+ 	}
+ 
+-	view->workspace = server.workspaces.current;
++	view->workspace = workspaces_current();
+ 	view->scene_tree = lab_wlr_scene_tree_create(
+ 		view->workspace->view_trees[VIEW_LAYER_NORMAL]);
+ 	wlr_scene_node_set_enabled(&view->scene_tree->node, false);
+diff --git a/src/xwayland.c b/src/xwayland.c
+index 67168a4..6cbcb39 100644
+--- a/src/xwayland.c
++++ b/src/xwayland.c
+@@ -1008,7 +1008,7 @@ xwayland_view_create(struct wlr_xwayland_surface *xsurface, bool mapped)
+ 	xwayland_view->xwayland_surface = xsurface;
+ 	xsurface->data = view;
+ 
+-	view->workspace = server.workspaces.current;
++	view->workspace = workspaces_current();
+ 	view->scene_tree = lab_wlr_scene_tree_create(
+ 		view->workspace->view_trees[VIEW_LAYER_NORMAL]);
+ 	wlr_scene_node_set_enabled(&view->scene_tree->node, false);
