@@ -4,7 +4,12 @@ dodo-session (0.5.0) unstable; urgency=medium
     empty: Super+= adds one, Super+- removes the current one, Super+Right on
     the last desktop adds one unless it is empty. Super+Shift+Left/Right
     take the window along (labwc AddDesktop and RemoveDesktop, Dodobian
-    patch 0004).
+    patch 0004). The mouse wheel on the desktop only leafs through the
+    desktops there are.
+  * Super+F maximizes the window and restores it, as Super+Up will open the
+    desktop overview.
+  * Desktops slide sideways in half a second and a pill of dots shows which
+    one you are on (labwc slideTime and popupStyle, Dodobian patch 0005).
 
  -- dmitrax <4255553+dmitrax@users.noreply.github.com>  Fri, 27 Nov 2026 21:00:00 +0400
 

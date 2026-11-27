@@ -18,7 +18,7 @@ Description: Workspaces of their own on every output, added by the user
  <desktops dynamic="yes">: the user adds and removes workspaces while
  Labwc runs, as on macOS: with the new AddDesktop and RemoveDesktop actions,
  with GoToDesktop or SendToDesktop to="right" from the last workspace unless
- it is empty, and through ext-workspace-v1 (create_workspace and remove), so
+ it is empty or the action says add="no" (a mouse wheel), and through ext-workspace-v1 (create_workspace and remove), so
  a panel can offer "+" and "x". A workspace stays while empty, workspaces do
  not wrap, and they are named by their position. A removed workspace hands
  its windows to its left neighbour (the right one for the first workspace);
@@ -38,10 +38,19 @@ Origin: vendor, https://github.com/dodobian/dodobian/tree/main/labwc
 Forwarded: no
 ---
 diff --git a/docs/labwc-actions.5.scd b/docs/labwc-actions.5.scd
-index 53e40a2..fd0aaf0 100644
+index 53e40a2..5e37d90 100644
 --- a/docs/labwc-actions.5.scd
 +++ b/docs/labwc-actions.5.scd
-@@ -321,7 +321,9 @@ Actions are used in menus and keyboard/mouse bindings.
+@@ -313,7 +313,7 @@ Actions are used in menus and keyboard/mouse bindings.
+ 	Resizes active window size to width and height of the output when the
+ 	window size exceeds the output size.
+ 
+-*<action name="GoToDesktop" to="value" wrap="yes" toggle="no" />*
++*<action name="GoToDesktop" to="value" wrap="yes" add="yes" toggle="no" />*
+ 	Switch to workspace.
+ 
+ 	*to* The workspace to switch to. Supported values are "current", "last",
+@@ -321,12 +321,18 @@ Actions are used in menus and keyboard/mouse bindings.
  	workspace or its index (starting at 1) as configured in rc.xml.
  
  	*wrap* [yes|no] Wrap around from last desktop to first, and vice
@@ -49,16 +58,28 @@ index 53e40a2..fd0aaf0 100644
 +	versa. Default is yes. With <desktops dynamic>, workspaces never
 +	wrap, and "right" from the last workspace adds a new one unless the
 +	last workspace is empty.
++
++	*add* [yes|no] With <desktops dynamic>, whether "right" from the last
++	workspace may add one. Default is yes; a mouse wheel binding would
++	rather say no.
  
  	*toggle* [yes|no] Toggle to “last” if already on the workspace that
  	would be the actual destination. Default is no.
-@@ -336,7 +338,19 @@ Actions are used in menus and keyboard/mouse bindings.
+ 
+-*<action name="SendToDesktop" to="value" follow="yes" wrap="yes" />*
++*<action name="SendToDesktop" to="value" follow="yes" wrap="yes" add="yes" />*
+ 	Send active window to workspace.
+ 
+ 	*to* The workspace to send the window to. Supported values are the same
+@@ -336,7 +342,21 @@ Actions are used in menus and keyboard/mouse bindings.
  	Default is yes.
  
  	*wrap* [yes|no] Wrap around from last desktop to first, and vice
 -	versa. Default is yes.
 +	versa. Default is yes. With <desktops dynamic>, the same as for
 +	GoToDesktop.
++
++	*add* [yes|no] The same as for GoToDesktop.
 +
 +*<action name="AddDesktop" follow="yes" />*
 +	With <desktops dynamic>, add a workspace at the end of the workspaces
@@ -243,7 +264,7 @@ index 3a5c6d0..03e6d62 100644
 +
  #endif /* LABWC_WORKSPACES_H */
 diff --git a/src/action.c b/src/action.c
-index 0821fc4..3fe4337 100644
+index 0821fc4..391ffcc 100644
 --- a/src/action.c
 +++ b/src/action.c
 @@ -112,6 +112,8 @@ struct action_arg_list {
@@ -255,7 +276,17 @@ index 0821fc4..3fe4337 100644
  	X(TOGGLE_SNAP_TO_REGION, "ToggleSnapToRegion") \
  	X(SNAP_TO_REGION, "SnapToRegion") \
  	X(UNSNAP, "UnSnap") \
-@@ -481,6 +483,12 @@ action_arg_from_xml_node(struct action *action, const char *nodename, const char
+@@ -475,12 +477,22 @@ action_arg_from_xml_node(struct action *action, const char *nodename, const char
+ 			action_arg_add_bool(action, argument, parse_bool(content, true));
+ 			goto cleanup;
+ 		}
++		if (!strcmp(argument, "add")) {
++			action_arg_add_bool(action, argument, parse_bool(content, true));
++			goto cleanup;
++		}
+ 		if (!strcmp(argument, "toggle")) {
+ 			action_arg_add_bool(
+ 				action, argument, parse_bool(content, false));
  			goto cleanup;
  		}
  		break;
@@ -268,7 +299,7 @@ index 0821fc4..3fe4337 100644
  	case ACTION_TYPE_TOGGLE_SNAP_TO_REGION:
  	case ACTION_TYPE_SNAP_TO_REGION:
  		if (!strcmp(argument, "region")) {
-@@ -1358,20 +1366,35 @@ run_action(struct view *view, struct action *action,
+@@ -1358,20 +1370,36 @@ run_action(struct view *view, struct action *action,
  		/* Falls through to GoToDesktop */
  	case ACTION_TYPE_GO_TO_DESKTOP: {
  		bool follow = true;
@@ -295,6 +326,7 @@ index 0821fc4..3fe4337 100644
 -			server.workspaces.current, to, wrap);
 +			anchor, to, wrap);
 +		if (!target_workspace && dynamic && !strcasecmp(to, "right")
++				&& action_get_bool(action, "add", true)
 +				&& !workspace_is_empty(anchor)) {
 +			/* Right of the last workspace, unless it is empty: a new one */
 +			target_workspace = workspaces_add(anchor->group);
@@ -309,7 +341,7 @@ index 0821fc4..3fe4337 100644
  			}
  		}
  		if (!target_workspace) {
-@@ -1392,6 +1415,17 @@ run_action(struct view *view, struct action *action,
+@@ -1392,6 +1420,17 @@ run_action(struct view *view, struct action *action,
  		}
  		break;
  	}

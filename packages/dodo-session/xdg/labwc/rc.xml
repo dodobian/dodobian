@@ -27,8 +27,9 @@
   <windowSwitcher><osd show="yes" style="thumbnail" output="cursor"/></windowSwitcher>
   <!-- Every monitor has desktops of its own, named 1, 2, 3... The user adds and removes them, as
        on macOS: Super+= and Super+-, or Super+Right on the last desktop if it is not empty; empty
-       desktops stay (Dodobian's labwc, patch 0004; another labwc ignores both attributes). -->
-  <desktops perOutput="yes" dynamic="yes" prefix=""/>
+       desktops stay. A switch slides sideways and a pill of dots shows where you are (Dodobian's
+       labwc, patches 0004 and 0005; another labwc ignores these attributes). -->
+  <desktops perOutput="yes" dynamic="yes" prefix="" slideTime="500" popupStyle="dots" popupTime="900"/>
   <focus><followMouse>no</followMouse><raiseOnFocus>no</raiseOnFocus></focus>
   <keyboard>
     <numlock>on</numlock>
@@ -51,6 +52,7 @@
     <keybind key="W-S-Right"><action name="SendToDesktop" to="right"/></keybind>
     <keybind key="W-equal"><action name="AddDesktop"/></keybind>
     <keybind key="W-minus"><action name="RemoveDesktop"/></keybind>
+    <keybind key="W-f"><action name="ToggleMaximize"/></keybind>
     <keybind key="W-Up"><action name="Maximize"/></keybind>
     <keybind key="W-Down"><action name="Iconify"/></keybind>
     <keybind key="W-d"><action name="ToggleShowDesktop"/></keybind>
@@ -67,8 +69,9 @@
     <context name="Root">
       <mousebind button="Left" action="Press"/>
       <mousebind button="Right" action="Press"><action name="ShowMenu" menu="dodo-root-menu"/></mousebind>
-      <mousebind direction="Up" action="Scroll"><action name="GoToDesktop" to="left" wrap="yes"/></mousebind>
-      <mousebind direction="Down" action="Scroll"><action name="GoToDesktop" to="right" wrap="yes"/></mousebind>
+      <!-- The wheel only leafs through the desktops there are: it never adds one. -->
+      <mousebind direction="Up" action="Scroll"><action name="GoToDesktop" to="left"/></mousebind>
+      <mousebind direction="Down" action="Scroll"><action name="GoToDesktop" to="right" add="no"/></mousebind>
     </context>
     <context name="Frame">
       <mousebind button="W-Left" action="Press"><action name="Focus"/><action name="Raise"/></mousebind>

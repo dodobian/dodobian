@@ -10,6 +10,7 @@ Our patches on top of Labwc releases, one file per patch, each with a DEP-3 head
 | `0002-scenefx-renderer.patch` | link against `libscenefx-0.5` (ahead of wlroots) and render with the SceneFX renderer; handle the node types SceneFX adds |
 | `0003-scenefx-rounded-corners-and-shadows.patch` | round all four window corners and draw soft shadows with SceneFX, for server-side and client-side decorated windows and in window captures; new theme keys `window.{active,inactive}.shadow.offset.{x,y}` |
 | `0004-per-output-and-dynamic-workspaces.patch` | `<desktops perOutput="yes">`: every output has workspaces of its own; `<desktops dynamic="yes">`: the user adds and removes workspaces, as on macOS |
+| `0005-workspace-slide-and-dots.patch` | `<desktops slideTime="500">`: workspaces slide in and out, as on macOS; `<desktops popupStyle="dots">`: the workspace OSD is a pill of dots |
 
 Upstream Labwc declined SceneFX (labwc/labwc pull request 3751), so the stack is carried here.
 
@@ -34,6 +35,12 @@ workspace with the same position. With `dynamic` the user adds and removes works
 `AddDesktop` and `RemoveDesktop`, `GoToDesktop`/`SendToDesktop` to the right of an occupied last
 workspace, or a panel's "+" and "x" through ext-workspace-v1. Empty workspaces stay, workspaces do
 not wrap, and they are named by position. Changing either option needs a restart. Asked for upstream in labwc/labwc issue 932.
+
+**Slide and dots (0005).** Both off by default. With `slideTime` a switch of workspaces slides: the
+output is rendered before and after the switch into buffers of its own, without the panel layers,
+and the two snapshots slide across it, cropped to the output, on cubic-bezier(0.25, 1, 0.5, 1).
+With `popupStyle="dots"` the workspace OSD is a pill near the bottom: one dot per workspace, the
+current one long, and its name. Windows are frozen during the slide.
 
 **GLES2 is required.** The SceneFX renderer is GLES2 only: a patched Labwc does not start with the
 pixman renderer. Software GLES2 (Mesa llvmpipe) works, which is how `packages/labwc/test.sh`

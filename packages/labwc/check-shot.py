@@ -15,6 +15,9 @@
 #   check-shot.py capture <window.ppm> <width> <height>
 #       A window capture (grim -T): the expected size, a blue centre, and rounded corners (the
 #       transparent corners come out black, grim writes no alpha channel).
+#   check-shot.py row <screen.ppm> <y> <split>
+#       Prints where row y is blue, left and right of x = split: "FIRST-LAST" or "-" for each,
+#       e.g. "0-414 -" (workspaces.sh follows a sliding window with it).
 import sys
 
 
@@ -137,6 +140,11 @@ if __name__ == "__main__":
         screen(sys.argv[2], int(sys.argv[3]))
     elif mode == "capture" and len(sys.argv) == 5:
         capture(sys.argv[2], int(sys.argv[3]), int(sys.argv[4]))
+    elif mode == "row" and len(sys.argv) == 5:
+        img, y, split = Image(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4])
+        xs = [x for x in range(img.width) if img.blue(x, y)]
+        spans = [[x for x in xs if x < split], [x for x in xs if x >= split]]
+        print(" ".join(f"{s[0]}-{s[-1]}" if s else "-" for s in spans))
     else:
         raise SystemExit(__doc__ or "usage: check-shot.py screen|capture ...")
     sys.exit(1 if failures else 0)

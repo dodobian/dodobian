@@ -1,0 +1,672 @@
+Description: Slide between workspaces, and a pill of dots as their OSD
+ Switching workspaces in Labwc is a cut: the windows of one workspace vanish
+ and those of the next appear. On macOS the old space slides out to one side
+ while the new one comes in from the other, so the user sees where they went.
+ This patch adds that, off by default, and a lighter OSD to go with it.
+ .
+ <desktops slideTime="500">: before a switch every output that shows the
+ group is rendered into a buffer of its own (wlr_scene_output_build_state
+ with a private swapchain), without the top and overlay layers, menus, OSDs
+ and software cursors; after the switch it is rendered again. Two scene
+ buffers above the windows and below the top layer then show the part of
+ each snapshot that is on screen, cropped with source boxes, so a panel stays
+ put and nothing spills onto a neighbouring output. The output frame handler
+ advances them on cubic-bezier(0.25, 1, 0.5, 1) until slideTime has passed.
+ A switch during a slide ends it where it was going. Rotated outputs, a locked
+ session and slideTime="0" switch at once. Each snapshot is followed by full
+ damage, since the real output has not seen that render.
+ .
+ <desktops popupStyle="dots">: the workspace OSD becomes a pill near the
+ bottom of the output, one dot per workspace with the current one drawn
+ long, and its name, in the OSD theme colours with the window switcher's
+ active colour as accent. It stays for popupTime whether or not modifiers
+ are held, since a quick key press would otherwise hide it before the slide
+ ends.
+ .
+ Known limits: windows are frozen during a slide (a video pauses for half a
+ second); omnipresent windows slide out and back in.
+Author: The Dodobian authors
+Origin: vendor, https://github.com/dodobian/dodobian/tree/main/labwc
+Forwarded: no
+---
+diff --git a/docs/labwc-config.5.scd b/docs/labwc-config.5.scd
+index 391ce5c..c3fccd0 100644
+--- a/docs/labwc-config.5.scd
++++ b/docs/labwc-config.5.scd
+@@ -647,6 +647,21 @@ extending outward from the snapped edge.
+ 	prefix. With perOutput, every output has its own. Default is no.
+ 	Changing it takes effect after a restart.
+ 
++*<desktops slideTime="">*
++	Slide from one workspace to the next, in milliseconds, as on macOS:
++	the old workspace leaves the output to one side while the new one
++	comes in from the other, on a curve that starts fast and settles
++	slowly. Layer-shell surfaces of the top and overlay layers, such as a
++	panel, stay where they are. Each output slides on its own and nothing
++	spills onto a neighbouring output. Rotated outputs switch at once.
++	Default is 0: no slide.
++
++*<desktops popupStyle="">* [classic|dots]
++	The look of the workspace switcher OSD. "dots" draws a pill near the
++	bottom of the output: one dot per workspace, the current one long, and
++	its name. It stays for popupTime whether or not modifiers are held.
++	Default is classic.
++
+ ## THEME
+ 
+ *<theme><name>*
+diff --git a/docs/rc.xml.all b/docs/rc.xml.all
+index a5137f4..c9571e2 100644
+--- a/docs/rc.xml.all
++++ b/docs/rc.xml.all
+@@ -207,6 +207,9 @@
+     Workspaces of their own on every output, added and removed by the user:
+     <desktops perOutput="yes" dynamic="yes" />
+ 
++    Slide between workspaces for 500 ms, with a pill of dots as the OSD:
++    <desktops slideTime="500" popupStyle="dots" />
++
+     popupTime defaults to 1000 so could be left out.
+     Set to 0 to completely disable the workspace OSD.
+ 
+diff --git a/include/config/rcxml.h b/include/config/rcxml.h
+index bf693f3..1d42a87 100644
+--- a/include/config/rcxml.h
++++ b/include/config/rcxml.h
+@@ -185,6 +185,8 @@ struct rcxml {
+ 
+ 	struct {
+ 		int popuptime;
++		int slide_time; /* ms, 0: no slide */
++		bool popup_dots; /* popupStyle="dots" */
+ 		int min_nr_workspaces;
+ 		bool per_output;
+ 		bool dynamic;
+diff --git a/include/output.h b/include/output.h
+index c592d4e..c894467 100644
+--- a/include/output.h
++++ b/include/output.h
+@@ -19,6 +19,8 @@ struct output {
+ 	struct wlr_scene_buffer *workspace_osd;
+ 	/* The workspaces this output shows, while it is in the layout */
+ 	struct workspace_group *workspace_group;
++	/* A switch of workspaces sliding on this output, or NULL */
++	struct workspace_slide *workspace_slide;
+ 
+ 	/* In output-relative scene coordinates */
+ 	struct wlr_box usable_area;
+diff --git a/include/workspace-slide.h b/include/workspace-slide.h
+new file mode 100644
+index 0000000..1a8c3af
+--- /dev/null
++++ b/include/workspace-slide.h
+@@ -0,0 +1,28 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef LABWC_WORKSPACE_SLIDE_H
++#define LABWC_WORKSPACE_SLIDE_H
++
++#include <stdbool.h>
++
++struct output;
++struct workspace_group;
++
++/*
++ * A switch of workspaces slides, as on macOS: the old workspace leaves the
++ * output to one side while the new one comes in from the other. Both are
++ * snapshots of the output without its top and overlay layers, so a panel
++ * stays where it is, and each is cropped to its output, so nothing spills
++ * onto a neighbouring one. <desktops slideTime=""> sets the duration, 0
++ * (the default) switches at once.
++ */
++
++/* Before the switch: snapshot every output that shows the group */
++void workspace_slide_prepare(struct workspace_group *group);
++/* After the switch: snapshot again and slide; forward = the new one is on the right */
++void workspace_slide_start(struct workspace_group *group, bool forward);
++/* Every frame of the output, before it is rendered */
++void workspace_slide_frame(struct output *output);
++/* Stop at once, e.g. when the output goes away */
++void workspace_slide_cancel(struct output *output);
++
++#endif /* LABWC_WORKSPACE_SLIDE_H */
+diff --git a/src/config/rcxml.c b/src/config/rcxml.c
+index 15c58b3..89a8798 100644
+--- a/src/config/rcxml.c
++++ b/src/config/rcxml.c
+@@ -1433,6 +1433,10 @@ entry(xmlNode *node, char *nodename, char *content)
+ 		wl_list_append(&rc.workspace_config.workspaces, &conf->link);
+ 	} else if (!strcasecmp(nodename, "popupTime.desktops")) {
+ 		rc.workspace_config.popuptime = atoi(content);
++	} else if (!strcasecmp(nodename, "slideTime.desktops")) {
++		rc.workspace_config.slide_time = MAX(0, atoi(content));
++	} else if (!strcasecmp(nodename, "popupStyle.desktops")) {
++		rc.workspace_config.popup_dots = !strcasecmp(content, "dots");
+ 	} else if (!strcasecmp(nodename, "initial.desktops")) {
+ 		xstrdup_replace(rc.workspace_config.initial_workspace_name, content);
+ 	} else if (!strcasecmp(nodename, "perOutput.desktops")) {
+@@ -1651,6 +1655,8 @@ rcxml_init(void)
+ 	rc.resize_minimum_area = 8;
+ 
+ 	rc.workspace_config.popuptime = INT_MIN;
++	rc.workspace_config.slide_time = 0;
++	rc.workspace_config.popup_dots = false;
+ 	rc.workspace_config.min_nr_workspaces = 1;
+ 	rc.workspace_config.per_output = false;
+ 	rc.workspace_config.dynamic = false;
+diff --git a/src/meson.build b/src/meson.build
+index da55e11..f3e9462 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -31,6 +31,7 @@ labwc_sources = files(
+   'view-fx.c',
+   'view-impl-common.c',
+   'window-rules.c',
++  'workspace-slide.c',
+   'workspaces.c',
+   'xdg.c',
+   'xdg-popup.c',
+diff --git a/src/output.c b/src/output.c
+index dc5749b..38cd617 100644
+--- a/src/output.c
++++ b/src/output.c
+@@ -37,6 +37,7 @@
+ #include "regions.h"
+ #include "session-lock.h"
+ #include "view.h"
++#include "workspace-slide.h"
+ #include "workspaces.h"
+ #include "view-fx.h"
+ #include "xwayland.h"
+@@ -282,6 +283,7 @@ handle_output_frame(struct wl_listener *listener, void *data)
+ 	 * changed; with several outputs this runs once per output frame.
+ 	 */
+ 	view_fx_update_all();
++	workspace_slide_frame(output);
+ 
+ 	lab_wlr_scene_output_commit(scene_output, pending);
+ 
+diff --git a/src/workspace-slide.c b/src/workspace-slide.c
+new file mode 100644
+index 0000000..e3d3759
+--- /dev/null
++++ b/src/workspace-slide.c
+@@ -0,0 +1,297 @@
++// SPDX-License-Identifier: GPL-2.0-only
++#define _POSIX_C_SOURCE 200809L
++#include "workspace-slide.h"
++#include <math.h>
++#include <stdlib.h>
++#include <time.h>
++#include <wlr/render/allocator.h>
++#include <wlr/render/swapchain.h>
++#include <wlr/types/wlr_buffer.h>
++#include <wlr/types/wlr_output_layout.h>
++#include <wlr/util/log.h>
++#include <scenefx/types/wlr_scene.h>
++#include "common/macros.h"
++#include "common/mem.h"
++#include "common/scene-helpers.h"
++#include "config/rcxml.h"
++#include "labwc.h"
++#include "output.h"
++#include "session-lock.h"
++#include "workspaces.h"
++
++struct workspace_slide {
++	struct wlr_buffer *from_buffer;
++	struct wlr_scene_tree *tree;
++	struct wlr_scene_buffer *from;
++	struct wlr_scene_buffer *to;
++	struct wlr_box box; /* the output in layout coordinates */
++	bool forward;
++	struct timespec start;
++};
++
++/*
++ * The macOS-like curve the Dodo desktop uses elsewhere too:
++ * cubic-bezier(0.25, 1, 0.5, 1), quick to start and long to settle.
++ */
++static double
++bezier(double p1, double p2, double t)
++{
++	double u = 1 - t;
++	return 3 * u * u * t * p1 + 3 * u * t * t * p2 + t * t * t;
++}
++
++static double
++ease(double x)
++{
++	double lo = 0, hi = 1, t = x;
++	for (int i = 0; i < 24; i++) {
++		t = (lo + hi) / 2;
++		if (bezier(0.25, 0.5, t) < x) {
++			lo = t;
++		} else {
++			hi = t;
++		}
++	}
++	return bezier(1, 1, t);
++}
++
++static double
++elapsed_ms(const struct timespec *start)
++{
++	struct timespec now;
++	clock_gettime(CLOCK_MONOTONIC, &now);
++	return (now.tv_sec - start->tv_sec) * 1000.0
++		+ (now.tv_nsec - start->tv_nsec) / 1e6;
++}
++
++static bool
++reject_input(struct wlr_scene_buffer *buffer, double *sx, double *sy)
++{
++	return false;
++}
++
++static bool
++can_slide(struct output *output)
++{
++	return rc.workspace_config.slide_time > 0
++		&& output_is_usable(output)
++		&& output->wlr_output->swapchain
++		&& output->wlr_output->transform == WL_OUTPUT_TRANSFORM_NORMAL
++		&& !server.session_lock_manager->locked;
++}
++
++static void
++set_enabled(struct wlr_scene_node *node, bool enabled, bool *was)
++{
++	if (!node) {
++		return;
++	}
++	if (was) {
++		*was = node->enabled;
++	}
++	wlr_scene_node_set_enabled(node, enabled);
++}
++
++/* The output as it looks without what stays on top while sliding */
++static struct wlr_buffer *
++snapshot(struct output *output)
++{
++	struct wlr_output *wlr_output = output->wlr_output;
++	struct wlr_swapchain *swapchain = wlr_swapchain_create(server.allocator,
++		wlr_output->width, wlr_output->height,
++		&wlr_output->swapchain->format);
++	if (!swapchain) {
++		return NULL;
++	}
++
++	struct wlr_scene_node *hide[] = {
++		&output->layer_tree[2]->node,
++		&output->layer_tree[3]->node,
++		&output->layer_popup_tree->node,
++		&output->cycle_osd_tree->node,
++		&server.menu_tree->node,
++		&server.cycle_preview_tree->node,
++		output->workspace_osd ? &output->workspace_osd->node : NULL,
++	};
++	bool was[ARRAY_SIZE(hide)] = { 0 };
++	for (size_t i = 0; i < ARRAY_SIZE(hide); i++) {
++		set_enabled(hide[i], false, &was[i]);
++	}
++
++	/* A software cursor would be drawn in, and slide along */
++	bool cursor_visible[16] = { 0 };
++	size_t n = 0;
++	struct wlr_output_cursor *cursor;
++	wl_list_for_each(cursor, &wlr_output->cursors, link) {
++		if (n < ARRAY_SIZE(cursor_visible)) {
++			cursor_visible[n++] = cursor->visible;
++			cursor->visible = false;
++		}
++	}
++
++	struct wlr_output_state state;
++	wlr_output_state_init(&state);
++	struct wlr_scene_output_state_options options = { .swapchain = swapchain };
++	struct wlr_buffer *buffer = NULL;
++	if (wlr_scene_output_build_state(output->scene_output, &state, &options)
++			&& state.buffer) {
++		buffer = wlr_buffer_lock(state.buffer);
++	}
++	wlr_output_state_finish(&state);
++	wlr_swapchain_destroy(swapchain);
++
++	for (size_t i = 0; i < ARRAY_SIZE(hide); i++) {
++		set_enabled(hide[i], was[i], NULL);
++	}
++	n = 0;
++	wl_list_for_each(cursor, &wlr_output->cursors, link) {
++		if (n < ARRAY_SIZE(cursor_visible)) {
++			cursor->visible = cursor_visible[n++];
++		}
++	}
++	/* The real output has not seen this render: draw it all again */
++	struct wlr_scene_output *scene_output = output->scene_output;
++	wlr_damage_ring_add_whole(&scene_output->damage_ring);
++	pixman_region32_union_rect(&scene_output->WLR_PRIVATE.pending_commit_damage,
++		&scene_output->WLR_PRIVATE.pending_commit_damage, 0, 0,
++		wlr_output->width, wlr_output->height);
++	wlr_output_schedule_frame(wlr_output);
++	return buffer;
++}
++
++static void
++slide_destroy(struct output *output)
++{
++	struct workspace_slide *slide = output->workspace_slide;
++	if (!slide) {
++		return;
++	}
++	if (slide->tree) {
++		wlr_scene_node_destroy(&slide->tree->node);
++	}
++	if (slide->from_buffer) {
++		wlr_buffer_unlock(slide->from_buffer);
++	}
++	free(slide);
++	output->workspace_slide = NULL;
++}
++
++void
++workspace_slide_cancel(struct output *output)
++{
++	slide_destroy(output);
++}
++
++void
++workspace_slide_prepare(struct workspace_group *group)
++{
++	struct output *output;
++	wl_list_for_each(output, &server.outputs, link) {
++		if (workspaces_group_for_output(output) != group) {
++			continue;
++		}
++		/* A slide still running ends where it is going */
++		slide_destroy(output);
++		if (!can_slide(output)) {
++			continue;
++		}
++		struct wlr_buffer *from = snapshot(output);
++		if (!from) {
++			continue;
++		}
++		struct workspace_slide *slide = znew(*slide);
++		slide->from_buffer = from;
++		output->workspace_slide = slide;
++	}
++}
++
++static void
++place(struct workspace_slide *slide, double progress)
++{
++	struct wlr_box *box = &slide->box;
++	int off = (int)lround(progress * box->width);
++	int rest = box->width - off;
++	double from_w = slide->from->buffer->width;
++	double to_w = slide->to->buffer->width;
++	double from_h = slide->from->buffer->height;
++	double to_h = slide->to->buffer->height;
++	double from_scale = from_w / box->width;
++	double to_scale = to_w / box->width;
++
++	wlr_scene_node_set_enabled(&slide->from->node, rest > 0);
++	wlr_scene_node_set_enabled(&slide->to->node, off > 0);
++	if (rest > 0) {
++		/* The old workspace keeps the part that has not left yet */
++		struct wlr_fbox src = {
++			.x = slide->forward ? off * from_scale : 0,
++			.width = rest * from_scale,
++			.height = from_h,
++		};
++		wlr_scene_buffer_set_source_box(slide->from, &src);
++		wlr_scene_buffer_set_dest_size(slide->from, rest, box->height);
++		wlr_scene_node_set_position(&slide->from->node,
++			box->x + (slide->forward ? 0 : off), box->y);
++	}
++	if (off > 0) {
++		/* The new one shows the part that has come in */
++		struct wlr_fbox src = {
++			.x = slide->forward ? 0 : rest * to_scale,
++			.width = off * to_scale,
++			.height = to_h,
++		};
++		wlr_scene_buffer_set_source_box(slide->to, &src);
++		wlr_scene_buffer_set_dest_size(slide->to, off, box->height);
++		wlr_scene_node_set_position(&slide->to->node,
++			box->x + (slide->forward ? rest : 0), box->y);
++	}
++}
++
++void
++workspace_slide_start(struct workspace_group *group, bool forward)
++{
++	struct output *output;
++	wl_list_for_each(output, &server.outputs, link) {
++		struct workspace_slide *slide = output->workspace_slide;
++		if (!slide || slide->tree || workspaces_group_for_output(output) != group) {
++			continue;
++		}
++		struct wlr_buffer *to = snapshot(output);
++		if (!to) {
++			slide_destroy(output);
++			continue;
++		}
++		wlr_output_layout_get_box(server.output_layout,
++			output->wlr_output, &slide->box);
++		slide->forward = forward;
++
++		/* Over the windows, under the panel */
++		slide->tree = lab_wlr_scene_tree_create(&server.scene->tree);
++		wlr_scene_node_place_below(&slide->tree->node,
++			&output->layer_tree[2]->node);
++		slide->from = lab_wlr_scene_buffer_create(slide->tree, slide->from_buffer);
++		slide->to = lab_wlr_scene_buffer_create(slide->tree, to);
++		wlr_buffer_unlock(to);
++		slide->from->point_accepts_input = reject_input;
++		slide->to->point_accepts_input = reject_input;
++
++		clock_gettime(CLOCK_MONOTONIC, &slide->start);
++		place(slide, 0);
++		wlr_output_schedule_frame(output->wlr_output);
++	}
++}
++
++void
++workspace_slide_frame(struct output *output)
++{
++	struct workspace_slide *slide = output->workspace_slide;
++	if (!slide || !slide->tree) {
++		return;
++	}
++	double x = elapsed_ms(&slide->start) / rc.workspace_config.slide_time;
++	if (x >= 1) {
++		slide_destroy(output);
++		return;
++	}
++	place(slide, ease(x));
++	wlr_output_schedule_frame(output->wlr_output);
++}
+diff --git a/src/workspaces.c b/src/workspaces.c
+index c8f1c24..64d873c 100644
+--- a/src/workspaces.c
++++ b/src/workspaces.c
+@@ -27,6 +27,7 @@
+ #include "theme.h"
+ #include "translate.h"
+ #include "view.h"
++#include "workspace-slide.h"
+ 
+ #define EXT_WORKSPACES_VERSION 1
+ 
+@@ -134,9 +135,133 @@ set_active(struct workspace *workspace, bool active)
+ 	}
+ }
+ 
++static void
++rounded_rect(cairo_t *cairo, double x, double y, double w, double h, double r)
++{
++	r = MIN(r, MIN(w, h) / 2);
++	cairo_new_sub_path(cairo);
++	cairo_arc(cairo, x + w - r, y + r, r, -G_PI / 2, 0);
++	cairo_arc(cairo, x + w - r, y + h - r, r, 0, G_PI / 2);
++	cairo_arc(cairo, x + r, y + h - r, r, G_PI / 2, G_PI);
++	cairo_arc(cairo, x + r, y + r, r, G_PI, 3 * G_PI / 2);
++	cairo_close_path(cairo);
++}
++
++/*
++ * <desktops popupStyle="dots">: a pill near the bottom of the output, one
++ * dot per workspace, the current one drawn long, and its name, as on macOS
++ * phones and Dodo's mockups. Colours come from the OSD theme, the accent
++ * from the active item of the window switcher.
++ */
++static void
++_osd_update_dots(struct workspace_group *group)
++{
++	struct theme *theme = rc.theme;
++	const int shadow = 14, height = 36, pad = 18, dot = 8, active = 26;
++	const int gap = 7, text_gap = 12;
++
++	size_t count = wl_list_length(&group->workspaces);
++	int dots_width = (count - 1) * (dot + gap) + active;
++	int text_width = font_width(&rc.font_osd, group->current->name);
++	int pill_width = pad * 2 + dots_width + text_gap + text_width;
++	int width = pill_width + shadow * 2;
++	int full_height = height + shadow * 2;
++	float *accent = theme->osd_window_switcher_thumbnail.item_active_border_color;
++	float *text = theme->osd_label_text_color;
++
++	struct output *output;
++	wl_list_for_each(output, &server.outputs, link) {
++		if (!output_is_usable(output)
++				|| workspaces_group_for_output(output) != group) {
++			continue;
++		}
++		struct lab_data_buffer *buffer = buffer_create_cairo(width,
++			full_height, output->wlr_output->scale);
++		if (!buffer) {
++			wlr_log(WLR_ERROR, "Failed to allocate buffer for workspace OSD");
++			continue;
++		}
++		cairo_t *cairo = cairo_create(buffer->surface);
++
++		/* A soft shadow, a little lower than the pill */
++		for (int i = shadow; i > 0; i -= 2) {
++			cairo_set_source_rgba(cairo, 0.055, 0.15, 0.125,
++				0.018 * (shadow - i + 2) / 2.0);
++			rounded_rect(cairo, shadow - i, shadow - i + 4,
++				pill_width + 2 * i, height + 2 * i - 4, height / 2.0 + i);
++			cairo_fill(cairo);
++		}
++
++		/* The pill */
++		rounded_rect(cairo, shadow + 0.5, shadow + 0.5, pill_width - 1,
++			height - 1, height / 2.0);
++		set_cairo_color(cairo, theme->osd_bg_color);
++		cairo_fill_preserve(cairo);
++		cairo_set_source_rgba(cairo, text[0], text[1], text[2], 0.14);
++		cairo_set_line_width(cairo, 1);
++		cairo_stroke(cairo);
++
++		/* The dots */
++		double x = shadow + pad;
++		double y = shadow + (height - dot) / 2.0;
++		struct workspace *workspace;
++		wl_list_for_each(workspace, &group->workspaces, link) {
++			bool current = workspace == group->current;
++			if (current) {
++				set_cairo_color(cairo, accent);
++			} else {
++				cairo_set_source_rgba(cairo,
++					text[0], text[1], text[2], 0.3);
++			}
++			int w = current ? active : dot;
++			rounded_rect(cairo, x, y, w, dot, dot / 2.0);
++			cairo_fill(cairo);
++			x += w + gap;
++		}
++
++		/* The name of the current workspace */
++		set_cairo_color(cairo, text);
++		PangoLayout *layout = pango_cairo_create_layout(cairo);
++		PangoFontDescription *desc = font_to_pango_desc(&rc.font_osd);
++		pango_font_description_set_weight(desc, PANGO_WEIGHT_SEMIBOLD);
++		pango_layout_set_font_description(layout, desc);
++		pango_font_description_free(desc);
++		pango_layout_set_text(layout, group->current->name, -1);
++		int text_height;
++		pango_layout_get_pixel_size(layout, NULL, &text_height);
++		cairo_move_to(cairo, x - gap + text_gap,
++			shadow + (height - text_height) / 2.0);
++		pango_cairo_show_layout(cairo, layout);
++		g_object_unref(layout);
++
++		cairo_surface_flush(cairo_get_target(cairo));
++		cairo_destroy(cairo);
++
++		if (!output->workspace_osd) {
++			output->workspace_osd = lab_wlr_scene_buffer_create(
++				&server.scene->tree, NULL);
++		}
++		/* Centred, an eighth of the output above its bottom edge */
++		struct wlr_box box;
++		wlr_output_layout_get_box(server.output_layout,
++			output->wlr_output, &box);
++		wlr_scene_node_set_position(&output->workspace_osd->node,
++			box.x + (box.width - width) / 2,
++			box.y + box.height - box.height / 8 - full_height);
++		wlr_scene_buffer_set_buffer(output->workspace_osd, &buffer->base);
++		wlr_scene_buffer_set_dest_size(output->workspace_osd,
++			buffer->logical_width, buffer->logical_height);
++		wlr_buffer_drop(&buffer->base);
++	}
++}
++
+ static void
+ _osd_update(struct workspace_group *group)
+ {
++	if (rc.workspace_config.popup_dots) {
++		_osd_update_dots(group);
++		return;
++	}
+ 	struct theme *theme = rc.theme;
+ 
+ 	/* Settings */
+@@ -587,7 +712,8 @@ _osd_show(struct workspace_group *group)
+ 			wlr_scene_node_set_enabled(&output->workspace_osd->node, true);
+ 		}
+ 	}
+-	if (keyboard_get_all_modifiers(&server.seat)) {
++	if (keyboard_get_all_modifiers(&server.seat)
++			&& !rc.workspace_config.popup_dots) {
+ 		/* Hidden by release of all modifiers */
+ 		server.seat.workspace_osd_shown_by_modifier = true;
+ 	} else {
+@@ -742,6 +868,7 @@ workspaces_output_added(struct output *output)
+ void
+ workspaces_output_removed(struct output *output)
+ {
++	workspace_slide_cancel(output);
+ 	struct workspace_group *group = output->workspace_group;
+ 	if (!group) {
+ 		return;
+@@ -803,6 +930,8 @@ workspaces_switch_to(struct workspace *target, bool update_focus)
+ 	if (target == group->current) {
+ 		return;
+ 	}
++	bool forward = workspace_index(target) > workspace_index(group->current);
++	workspace_slide_prepare(group);
+ 
+ 	/* Disable the old workspace */
+ 	wlr_scene_node_set_enabled(&group->current->tree->node, false);
+@@ -863,6 +992,8 @@ workspaces_switch_to(struct workspace *target, bool update_focus)
+ 		}
+ 	}
+ 
++	workspace_slide_start(group, forward);
++
+ 	/* And finally show the OSD */
+ 	_osd_show(group);
+ 

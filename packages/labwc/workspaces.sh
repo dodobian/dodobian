@@ -1,19 +1,21 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright (C) 2026 The Dodobian authors
 #
-# Test of patch 0004 (workspaces per output, dynamic workspaces). Run by test.sh after the
-# SceneFX checks, with its environment (headless, software GLES2). Labwc runs twice on two
+# Test of patches 0004 (workspaces per output, dynamic workspaces) and 0005 (slide). Run by test.sh
+# after the SceneFX checks, with its environment (headless, software GLES2). Labwc runs thrice on two
 # headless outputs of 1280x720, side by side:
 #   1. <desktops perOutput="yes" dynamic="yes">: foot windows a (left output), b (right) and c;
 #      after every step the workspace groups as clients see them (workspaces.py, ext-workspace-v1)
 #      and the workspace of every window (labwc's scene dump, scene-views.py) are compared with
 #      what is expected: workspaces are added and removed only on request (AddDesktop,
-#      RemoveDesktop, GoToDesktop right of an occupied last workspace, create_workspace and
-#      remove from a client) and stay while empty, they never wrap, switching one output leaves
-#      the other alone, a new window lands on the current workspace of its output, MoveToOutput
-#      takes a window to the other output's current workspace, and an output switched off hands
-#      its windows to the remaining one.
-#   2. Without the options: one workspace group spans both outputs, as in stock Labwc.
+#      RemoveDesktop, GoToDesktop right of an occupied last workspace unless add="no",
+#      create_workspace and remove from a client) and stay while empty, they never wrap,
+#      switching one output leaves the other alone, a new window lands on the current workspace
+#      of its output, MoveToOutput takes a window to the other output's current workspace, and an
+#      output switched off hands its windows to the remaining one.
+#   2. Patch 0005, slideTime="3000" (slow, for grim to catch it): the screen grabbed (grim, check-shot.py row) before, during and
+#      after a switch shows window a on its way out to the left, never on the right output.
+#   3. Without the options: one workspace group spans both outputs, as in stock Labwc.
 # Exit status 0 when every check passes.
 here=$(cd "$(dirname "$0")" && pwd)
 run=$(mktemp -d)
@@ -40,6 +42,23 @@ key() { wtype "$@"; sleep 0.4; }
 
 wlr-randr --output HEADLESS-1 --pos 0,0 --output HEADLESS-2 --pos 1280,0
 sleep 0.5
+if [ "$MODE" = slide ]; then
+	row() { python3 -I "$HERE/check-shot.py" row "$1" 300 1280; }
+	span() { case "$2" in $3) echo ok ;; *) echo "$2" ;; esac; }
+	key -M alt -k F1 -m alt
+	term a; windows 1
+	key -M alt -k s -m alt
+	grim -t ppm "$RUN/s0.ppm"
+	wtype -M ctrl -M alt -k Right -m alt -m ctrl
+	sleep 0.15; grim -t ppm "$RUN/s1.ppm"
+	sleep 3.5; grim -t ppm "$RUN/s2.ppm"
+	check "before: a on the left output" ok "$(span x "$(row "$RUN/s0.ppm")" '10[0-9]-* -')"
+	check "half way: a leaving to the left, not on the right output" ok \
+		"$(span x "$(row "$RUN/s1.ppm")" '0-* -')"
+	check "after: a gone" "- -" "$(row "$RUN/s2.ppm")"
+	check "after: on workspace 2" "HEADLESS-1: 1 *2|HEADLESS-2: *1" "$(ws)"
+	echo DONE; labwc --exit; exit
+fi
 if [ "$MODE" = stock ]; then
 	check "one group for both outputs" "HEADLESS-1,HEADLESS-2: *1 2 3 4" "$(ws)"
 	key -M ctrl -M alt -k Right -m alt -m ctrl
@@ -77,6 +96,8 @@ check "GoToDesktop on the right output" "HEADLESS-1: *1|HEADLESS-2: 1 *2" "$(ws)
 key -M ctrl -M alt -k Left -m alt -m ctrl; key -M ctrl -M alt -k Left -m alt -m ctrl
 check "left of the first workspace: no wrap" "HEADLESS-1: *1|HEADLESS-2: *1 2" "$(ws)"
 python3 -I "$HERE/workspaces.py" HEADLESS-2 2 remove; sleep 0.3
+key -M alt -k n -m alt
+check "add=no: right of an occupied last workspace, nothing" "HEADLESS-1: *1|HEADLESS-2: *1" "$(ws)"
 key -M ctrl -M alt -k Right -m alt -m ctrl
 check "right of an occupied last workspace: a new one" "HEADLESS-1: *1|HEADLESS-2: 1 *2" "$(ws)"
 key -M ctrl -M alt -k Left -m alt -m ctrl; key -M alt -k F1 -m alt
@@ -94,9 +115,11 @@ labwc --exit
 EOF
 
 result=0
-for MODE in per-output stock; do
+for MODE in per-output slide stock; do
 	if [ "$MODE" = stock ]; then
 		desktops='<desktops number="4" prefix="" popupTime="0"/>'
+	elif [ "$MODE" = slide ]; then
+		desktops='<desktops perOutput="yes" dynamic="yes" prefix="" popupTime="0" slideTime="3000"/>'
 	else
 		desktops='<desktops perOutput="yes" dynamic="yes" prefix="" popupTime="0"/>'
 	fi
@@ -113,6 +136,7 @@ for MODE in per-output stock; do
     <keybind key="A-a"><action name="AddDesktop"/></keybind>
     <keybind key="A-s"><action name="AddDesktop" follow="no"/></keybind>
     <keybind key="A-r"><action name="RemoveDesktop"/></keybind>
+    <keybind key="A-n"><action name="GoToDesktop" to="right" add="no"/></keybind>
     <keybind key="A-F12"><action name="Debug"/></keybind>
   </keyboard>
   <windowRules>
