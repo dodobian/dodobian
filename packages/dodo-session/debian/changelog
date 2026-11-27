@@ -1,3 +1,13 @@
+dodo-session (0.4.0) unstable; urgency=medium
+
+  * Every monitor has desktops of its own, created as needed and named by
+    position (labwc <desktops perOutput dynamic>, Dodobian patch 0004).
+  * The pinned= monitor of session.conf is gone with its login-time labwc
+    layer and the split panel: a monitor keeps its desktop while another one
+    switches. An old pinned= key is ignored, and the log says so.
+
+ -- dmitrax <4255553+dmitrax@users.noreply.github.com>  Fri, 27 Nov 2026 20:00:00 +0400
+
 dodo-session (0.3.1) unstable; urgency=medium
 
   * The login session is named Dodo Desktop, the desktop's full name.

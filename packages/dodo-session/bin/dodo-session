@@ -25,10 +25,8 @@ mkdir -p "$rt/xdg"
 export XDG_CONFIG_DIRS="$rt/xdg:$DODO_DEFAULTS/xdg:${XDG_CONFIG_DIRS:-/etc/xdg}"
 export DODO_SESSION=1
 
-# session.conf: primary= (desktop icons, one name or a comma-separated list),
-# pinned= (an output whose windows show on every desktop).
+# session.conf: primary= (desktop icons, one name or a comma-separated list).
 primary=$(conf_get primary)
-pinned=$(conf_get pinned)
 if [ -n "$primary" ]; then
 	if valid_outputs "$primary"; then
 		export XFW_PRIMARY_MONITOR="$primary"
@@ -36,14 +34,7 @@ if [ -n "$primary" ]; then
 		say "ignoring primary=$primary: not an output name"
 	fi
 fi
-case $pinned in
-*,*) say "ignoring pinned=$pinned: one output only"; pinned= ;;
-esac
-if [ -n "$pinned" ] && ! valid_outputs "$pinned"; then
-	say "ignoring pinned=$pinned: not an output name"
-	pinned=
-fi
-export DODO_PINNED="$pinned"
+[ -z "$(conf_get pinned)" ] || say "ignoring pinned=: every monitor has desktops of its own now"
 
 # Keyboard layout from the machine's /etc/default/keyboard (set by the installer), unless the user
 # set XKB_DEFAULT_* already; labwc's environment files are read later and win over both.
@@ -79,8 +70,6 @@ for p in labwc libxfce4windowing-0-0; do
 	esac
 done
 
-"$DODO_LIB/gen-labwc" "$rt/xdg/labwc" "$pinned" || say "gen-labwc failed: no pinned layer"
-
 # systemd --user outlives the compositor: clean before and after, or a re-login
 # (or a compositor crash) leaves the session units failed.
 clean() {
@@ -88,7 +77,7 @@ clean() {
 		graphical-session-pre.target 2>/dev/null
 	systemctl --user stop xdg-desktop-portal.service xdg-desktop-portal-gtk.service \
 		xdg-desktop-portal-wlr.service 2>/dev/null
-	systemctl --user unset-environment WAYLAND_DISPLAY DODO_SESSION DODO_PINNED \
+	systemctl --user unset-environment WAYLAND_DISPLAY DODO_SESSION \
 		XFW_PRIMARY_MONITOR XDG_CONFIG_DIRS 2>/dev/null
 	systemctl --user reset-failed 2>/dev/null
 }

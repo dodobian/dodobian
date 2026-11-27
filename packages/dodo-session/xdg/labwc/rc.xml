@@ -25,7 +25,9 @@
     <font><name>Noto Sans</name><size>10</size></font>
   </theme>
   <windowSwitcher><osd show="yes" style="thumbnail" output="cursor"/></windowSwitcher>
-  <desktops number="4"><names><name>1</name><name>2</name><name>3</name><name>4</name></names></desktops>
+  <!-- Every monitor has desktops of its own, created as needed and named 1, 2, 3...
+       (Dodobian's labwc, patch 0004; another labwc ignores both attributes). -->
+  <desktops perOutput="yes" dynamic="yes" prefix=""/>
   <focus><followMouse>no</followMouse><raiseOnFocus>no</raiseOnFocus></focus>
   <keyboard>
     <numlock>on</numlock>

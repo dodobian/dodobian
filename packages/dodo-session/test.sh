@@ -2,13 +2,14 @@
 # Copyright (C) 2026 The Dodobian authors
 #
 # Package test, run by packages/build.sh after install (as root, in a clean debian:forky container).
-# The whole session runs once, headless, with two outputs and a user session.conf that pins one:
+# The whole session runs once, headless, with two outputs and a user session.conf:
 #   - every script passes dash -n, and no monitor name ships in the package;
 #   - dodo-session starts labwc (the archive's: pixman, no GPU) with our layers, and labwc
 #     reports no error from its config, menu or actions;
-#   - the login-time files are valid: the pinned labwc layer (XML), the xfdesktop wallpaper
-#     defaults (XML, one entry per output), the per-output Waybar panel (JSON);
-#   - the session log says labwc exited cleanly and warns that this labwc is not our build.
+#   - the login-time files are valid: the xfdesktop wallpaper defaults (XML, one entry per output);
+#     the panel wrapper starts Waybar with the Dodo panel;
+#   - the session log says labwc exited cleanly, warns that this labwc is not our build, and
+#     ignores the old pinned= key.
 apt-get install -y -qq --no-install-recommends libxml2-utils >/dev/null
 
 echo "scripts"
@@ -26,7 +27,7 @@ chmod 755 "$run/shim/waybar"
 # The user's autostart (read after ours): run the panel wrapper, keep the login-time layer, leave.
 cat > "$run/home/.config/labwc/autostart" <<EOF
 sleep 2
-PATH=$run/shim:\$PATH DODO_SESSION=1 DODO_PINNED=HEADLESS-1 /usr/libexec/dodo-session/waybar
+PATH=$run/shim:\$PATH DODO_SESSION=1 /usr/libexec/dodo-session/waybar
 cp -r "\$XDG_RUNTIME_DIR/dodo" $run/snap/
 labwc --exit
 EOF
@@ -41,6 +42,7 @@ cat "$log"
 [ "$rc" = 0 ] || { echo "dodo-session exited with $rc"; exit 1; }
 grep -q "labwc exited with 0" "$log"
 grep -q "warning: labwc .* is not a Dodobian build" "$log"
+grep -q "ignoring pinned=" "$log"
 if grep -E '\[ERROR\] \[[^]]*src/(config|menu|action)' "$log"; then
 	echo "labwc found errors in the Dodo config"; exit 1
 fi
@@ -48,16 +50,11 @@ fi
 
 echo "login-time files"
 s="$run/snap/dodo"
-xmllint --noout "$s/xdg/labwc/rc.xml"
-grep -q 'monitor="HEADLESS-1"' "$s/xdg/labwc/rc.xml"
+[ ! -e "$s/xdg/labwc" ] || { echo "a login-time labwc layer is back"; exit 1; }
 x="$s/xdg/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml"
 xmllint --noout "$x"
 [ "$(grep -c 'name="monitorHEADLESS-[12]"' "$x")" = 2 ]
-jq -e 'length == 4
-	and .[1].output == "!HEADLESS-1" and .[2].output == "HEADLESS-1"
-	and (.[2] | has("ext/workspaces") | not)
-	and .[3].name == "deskpop" and .[3].output == "HEADLESS-2"' "$s/waybar/config.json" >/dev/null
-grep -q -- "-c $run/xdg/dodo/waybar/config.json" "$run/snap/waybar-args"
+grep -q -- "-c /usr/share/dodo/waybar/config.json" "$run/snap/waybar-args"
 echo "terminal"
 t=$(env -i HOME="$run/home" PATH=/usr/bin:/bin XDG_CONFIG_DIRS=/usr/share/dodo/xdg:/etc/xdg xdg-terminal-exec --print-id)
 [ "$t" = xfce4-terminal.desktop ] || { echo "default terminal is $t"; exit 1; }

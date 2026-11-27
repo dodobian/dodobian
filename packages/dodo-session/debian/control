@@ -48,15 +48,17 @@ Recommends: gvfs,
  xwayland,
 Description: Dodo Desktop session: labwc, Waybar and xfdesktop defaults
  Dodo Desktop as a login session: labwc with the Dodo theme,
- key and mouse bindings and an English menu, a two-bar Waybar panel,
+ key and mouse bindings and an English menu, desktops of its own on every
+ monitor, created as needed, a two-bar Waybar panel,
  desktop icons and wallpaper from xfdesktop, and systemd user units that
  start and stop them with the session.
  .
  Defaults live in /usr/share/dodo/xdg and are found through
  XDG_CONFIG_DIRS, so apt upgrades them and a user's own ~/.config always
- wins. Per-machine settings (primary monitor, a monitor pinned to every
- desktop) go in /etc/dodo/session.conf; the package names no monitor.
+ wins. Per-machine settings (the primary monitor) go in
+ /etc/dodo/session.conf; the package names no monitor.
  .
- Rounded corners and shadows need the Dodobian build of labwc, and icons on
- the primary monitor the Dodobian build of libxfce4windowing; with Debian's
- builds the session still works and says so in its log.
+ Rounded corners, shadows and desktops per monitor need the Dodobian
+ build of labwc, and icons on the primary monitor the Dodobian build of
+ libxfce4windowing; with Debian's builds the session still works and says
+ so in its log.

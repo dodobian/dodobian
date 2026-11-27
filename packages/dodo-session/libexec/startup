@@ -44,12 +44,12 @@ mkdir -p "$x"
 vars=
 for v in WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE XDG_CONFIG_DIRS XCURSOR_THEME \
 	XCURSOR_SIZE QT_QPA_PLATFORM ELECTRON_OZONE_PLATFORM_HINT XKB_DEFAULT_LAYOUT \
-	XKB_DEFAULT_VARIANT XKB_DEFAULT_OPTIONS XKB_DEFAULT_MODEL DODO_SESSION DODO_PINNED \
+	XKB_DEFAULT_VARIANT XKB_DEFAULT_OPTIONS XKB_DEFAULT_MODEL DODO_SESSION \
 	XFW_PRIMARY_MONITOR; do
 	eval "set=\${$v+x}"
 	[ "$set" = x ] && vars="$vars $v"
 done
 # shellcheck disable=SC2086 # a list of variable names
 dbus-update-activation-environment --systemd $vars || say "could not export the environment"
-say "outputs: $(echo $outputs); pinned=${DODO_PINNED:-none}; primary=${XFW_PRIMARY_MONITOR:-auto}"
+say "outputs: $(echo $outputs); primary=${XFW_PRIMARY_MONITOR:-auto}"
 systemctl --user start dodo-session.target || say "dodo-session.target failed to start"
