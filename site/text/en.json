@@ -1,0 +1,61 @@
+{
+ "locale": "en_US",
+ "path": "/",
+ "other": "ru",
+ "langname": "English",
+ "title": "Dodobian — a classic Linux desktop on Debian",
+ "desc": "Dodobian is a Linux distribution built on Debian around Dodo Desktop: a classic desktop with a panel, a menu and windows you drive with the mouse, with rounded corners and soft shadows. Work in progress.",
+ "menu": "Dodobian",
+ "clock_label": "Clock",
+ "about_t": "About Dodobian",
+ "inside_t": "What’s inside",
+ "progress_t": "Progress",
+ "term_t": "Terminal",
+ "eyebrow": "Work in progress",
+ "h1": "The dodo is back.<br>This time on Debian.",
+ "lead": "Dodobian is a Linux distribution built on Debian around Dodo Desktop: a classic desktop with a panel, a menu and windows you drive with the mouse. Rounded corners and soft shadows included, like the windows on this page.",
+ "hint": "Go on, drag one by its title bar.",
+ "gh": "Follow on GitHub",
+ "prog_btn": "See progress",
+ "inside": [
+  [
+   "Debian underneath",
+   "Ordinary .deb packages: <code>apt upgrade</code> updates the desktop and its settings."
+  ],
+  [
+   "Labwc, refined",
+   "Rounded corners and a soft shadow on every window."
+  ],
+  [
+   "Desktops on every monitor",
+   "Each monitor has its own. Add and remove them as on macOS."
+  ],
+  [
+   "Mouse first",
+   "Everything works with the mouse. Shortcuts too."
+  ]
+ ],
+ "done_h": "Done",
+ "next_h": "Next",
+ "done": [
+  "Rounded corners and soft shadows",
+  "Independent desktops on every monitor",
+  "Packages built in CI for amd64 and arm64"
+ ],
+ "next": [
+  "Desktop overview",
+  "Our own top panel",
+  "APT repository at apt.dodobian.org",
+  "Installer"
+ ],
+ "term_err": "E: Unable to locate package dodobian-desktop",
+ "term_note": "# Not yet. Watch the repository:",
+ "copy": "© 2026 The Dodobian authors. Free software under GPL-2.0-or-later.",
+ "tm": "Debian is a registered trademark of Software in the Public Interest, Inc. Dodobian is not affiliated with the Debian project.",
+ "alt": "A dodo walks a computer mouse on a leash along a tropical lagoon",
+ "min": "Minimize",
+ "max": "Maximize",
+ "close": "Close",
+ "tasks": "Open windows",
+ "lang_label": "Language"
+}

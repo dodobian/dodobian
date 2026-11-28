@@ -4,6 +4,7 @@
 *.buildinfo
 build/
 out/
+site/public/
 brand/svg/work/
 # local environments
 .venv/

@@ -25,7 +25,8 @@ later animations), and the brand. Everything lives in this one repository.
 - **Commits** follow [Conventional Commits](https://www.conventionalcommits.org/):
   `<type>[optional scope]: <description>`, in English, imperative mood, lowercase, no trailing period.
   Commit with an address you are happy to publish; a GitHub noreply address works.
-- **Language.** Code, comments, file names and commit messages are in English.
+- **Language.** Code, comments, file names and commit messages are in English. Translations of the
+  website live in `site/<lang>/` (Russian in `site/ru/`); nothing else carries another language.
 - **Names.** Dodo Desktop (Dodo for short) is the desktop, Dodobian the distribution. Whatever
   could run on another distribution carries the desktop's name: packages `dodo-*`, among them the
   `dodo-desktop` metapackage, commands, `/usr/share/dodo`, `/etc/dodo`, `DODO_*` variables. Only
